@@ -10,7 +10,7 @@
   <title>SEED — Spherical Notes</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icon-192.png">
-  <link rel="stylesheet" href="./style.css?v=06">
+  <link rel="stylesheet" href="./style.css?v=07">
 </head>
 <body>
   <main id="app" aria-label="SEED spherical notes">
@@ -47,19 +47,15 @@
           <textarea id="seedBody" rows="8" placeholder="文脈を気にせず、そのまま書く"></textarea>
         </label>
         <div class="editor-grid">
-          <label>
-            <span>色</span>
-            <select id="seedColor">
-              <option value="pearl">Pearl Gold</option>
-              <option value="ice">Ice Blue</option>
-              <option value="mint">Mint</option>
-              <option value="violet">Violet</option>
-              <option value="rose">Rose</option>
-              <option value="cobalt">Cobalt</option>
-              <option value="silver">Silver</option>
-            </select>
-          </label>
-          <label>
+          <div class="color-field">
+            <div class="field-label">
+              <span>色</span>
+              <small id="selectedColorName">Ice Blue</small>
+            </div>
+            <div id="colorPalette" class="color-palette" role="radiogroup" aria-label="SEEDの色"></div>
+            <input id="seedColor" type="hidden" value="ice">
+          </div>
+          <label class="size-field">
             <span>サイズ</span>
             <select id="seedSize">
               <option value="0.76">S</option>
@@ -100,6 +96,20 @@
         <button id="dismissHintButton" class="menu-row" type="button">
           <span>操作ヒントを切り替える</span><small>HINT</small>
         </button>
+
+        <p class="menu-section-label">ARRANGE</p>
+        <button id="arrangeSizeButton" class="menu-row" type="button">
+          <span>サイズ順に小さく整列</span><small>SIZE</small>
+        </button>
+        <button id="arrangeColorButton" class="menu-row" type="button">
+          <span>色別に小さく整列</span><small>COLOR</small>
+        </button>
+        <button id="arrangeEvenButton" class="menu-row" type="button">
+          <span>均等に小さく整列</span><small>EVEN</small>
+        </button>
+        <button id="restoreLayoutButton" class="menu-row" type="button">
+          <span>整列前の配置に戻す</span><small>UNDO</small>
+        </button>
         <button id="clearLinksButton" class="menu-row" type="button">
           <span>全接続を解除</span><small>LINK</small>
         </button>
@@ -110,8 +120,29 @@
       </div>
     </section>
 
+
+    <aside id="connectionPanel" class="connection-panel" aria-label="メインSEEDの接続一覧">
+      <button id="connectionPanelToggle" class="connection-panel-toggle" type="button"
+              aria-label="接続一覧を隠す" aria-expanded="true">›</button>
+      <div class="connection-panel-inner">
+        <div class="connection-section">
+          <p class="connection-kicker">MAIN</p>
+          <button id="panelMainTitle" class="connection-main-title" type="button">NO MAIN</button>
+        </div>
+        <div class="connection-rule"></div>
+        <div class="connection-section connected-section">
+          <div class="connection-heading-row">
+            <p class="connection-kicker">CONNECTED</p>
+            <span id="connectionCount" class="connection-count">0</span>
+          </div>
+          <div id="connectionList" class="connection-list"></div>
+          <p id="connectionEmpty" class="connection-empty">NO CONNECTION</p>
+        </div>
+      </div>
+    </aside>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </main>
-  <script src="./app.js?v=06"></script>
+  <script src="./app.js?v=07"></script>
 </body>
 </html>

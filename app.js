@@ -3,40 +3,92 @@
 
   const STORAGE_KEY = "seed-spherical-notes-v1";
   const HINT_KEY = "seed-spherical-hint-v1";
+  const PANEL_KEY = "seed-connection-panel-v1";
   const MAIN_SIZE = 1.34;
   const GUIDE_SCALE = 0.50;
   const MAX_FREE_DISTANCE = 3.40;
   const SIZE_OPTIONS = [0.76, 0.88, 1.0, 1.12];
-  const COLOR_KEYS = ["pearl", "ice", "mint", "violet", "rose", "cobalt", "silver"];
+
+  const COLOR_KEYS = [
+    "pearl", "ice", "mint", "violet", "rose", "cobalt", "silver",
+    "palePink", "paleYellow", "paleGreen", "lilac", "aqua", "peach", "smokyBlue"
+  ];
+
+  const COLOR_NAMES = {
+    pearl: "Pearl Gold",
+    ice: "Ice Blue",
+    mint: "Mint",
+    violet: "Violet",
+    rose: "Rose",
+    cobalt: "Cobalt",
+    silver: "Silver",
+    palePink: "Pale Pink",
+    paleYellow: "Pale Yellow",
+    paleGreen: "Pale Green",
+    lilac: "Lilac",
+    aqua: "Aqua",
+    peach: "Peach",
+    smokyBlue: "Smoky Blue"
+  };
+
   const LEGACY_COLOR_MAP = { mist: "violet", navy: "cobalt" };
+
   const COLOR_PALETTES = {
     pearl: {
-      glow: [255, 252, 232], mid: [255, 224, 137], dark: [198, 139, 49],
-      label: [111, 75, 20]
+      glow: [255, 253, 237], mid: [255, 224, 137], dark: [198, 139, 49],
+      label: [111, 75, 20], chip: "#f2c768"
     },
     ice: {
-      glow: [236, 253, 255], mid: [126, 222, 246], dark: [40, 137, 191],
-      label: [18, 83, 126]
+      glow: [238, 253, 255], mid: [126, 222, 246], dark: [40, 137, 191],
+      label: [18, 83, 126], chip: "#83d9f1"
     },
     mint: {
-      glow: [233, 255, 248], mid: [117, 224, 187], dark: [29, 139, 108],
-      label: [18, 92, 73]
+      glow: [235, 255, 249], mid: [117, 224, 187], dark: [29, 139, 108],
+      label: [18, 92, 73], chip: "#78ddb9"
     },
     violet: {
       glow: [250, 242, 255], mid: [202, 158, 237], dark: [106, 65, 173],
-      label: [76, 43, 126]
+      label: [76, 43, 126], chip: "#b889df"
     },
     rose: {
       glow: [255, 241, 247], mid: [238, 148, 179], dark: [175, 65, 105],
-      label: [119, 38, 72]
+      label: [119, 38, 72], chip: "#e38cac"
     },
     cobalt: {
       glow: [239, 246, 255], mid: [102, 158, 235], dark: [25, 67, 148],
-      label: [18, 54, 112]
+      label: [18, 54, 112], chip: "#528bda"
     },
     silver: {
       glow: [253, 254, 255], mid: [197, 207, 220], dark: [91, 104, 124],
-      label: [54, 66, 84]
+      label: [54, 66, 84], chip: "#b7c1cf"
+    },
+    palePink: {
+      glow: [255, 250, 253], mid: [249, 205, 222], dark: [211, 137, 168],
+      label: [122, 66, 91], chip: "#f2c2d5"
+    },
+    paleYellow: {
+      glow: [255, 255, 246], mid: [250, 236, 164], dark: [205, 174, 78],
+      label: [107, 89, 27], chip: "#eadb8d"
+    },
+    paleGreen: {
+      glow: [249, 255, 249], mid: [196, 235, 191], dark: [112, 174, 110],
+      label: [53, 102, 54], chip: "#b9dfb6"
+    },
+    lilac: {
+      glow: [253, 249, 255], mid: [222, 198, 242], dark: [151, 110, 190],
+      label: [91, 61, 122], chip: "#d4bce9"
+    },
+    aqua: {
+      glow: [246, 255, 255], mid: [167, 235, 233], dark: [69, 161, 162],
+      label: [29, 102, 104], chip: "#9edfde"
+    },
+    peach: {
+      glow: [255, 250, 245], mid: [249, 193, 157], dark: [201, 117, 75],
+      label: [122, 66, 39], chip: "#efb68f"
+    },
+    smokyBlue: {
+      glow: [248, 251, 255], mid: [164, 188, 215], dark: [76, 105, 143],
+      label: [45, 67, 96], chip: "#94abc7"
     }
   };
 
@@ -49,6 +101,8 @@
   const titleInput = document.getElementById("seedTitle");
   const bodyInput = document.getElementById("seedBody");
   const colorInput = document.getElementById("seedColor");
+  const colorPalette = document.getElementById("colorPalette");
+  const selectedColorName = document.getElementById("selectedColorName");
   const sizeInput = document.getElementById("seedSize");
   const saveButton = document.getElementById("saveButton");
   const deleteButton = document.getElementById("deleteButton");
@@ -58,10 +112,21 @@
   const importInput = document.getElementById("importInput");
   const resetViewButton = document.getElementById("resetViewButton");
   const dismissHintButton = document.getElementById("dismissHintButton");
+  const arrangeSizeButton = document.getElementById("arrangeSizeButton");
+  const arrangeColorButton = document.getElementById("arrangeColorButton");
+  const arrangeEvenButton = document.getElementById("arrangeEvenButton");
+  const restoreLayoutButton = document.getElementById("restoreLayoutButton");
   const clearLinksButton = document.getElementById("clearLinksButton");
   const clearButton = document.getElementById("clearButton");
   const gestureHint = document.getElementById("gestureHint");
   const toast = document.getElementById("toast");
+
+  const connectionPanel = document.getElementById("connectionPanel");
+  const connectionPanelToggle = document.getElementById("connectionPanelToggle");
+  const panelMainTitle = document.getElementById("panelMainTitle");
+  const connectionList = document.getElementById("connectionList");
+  const connectionEmpty = document.getElementById("connectionEmpty");
+  const connectionCount = document.getElementById("connectionCount");
 
   let dpr = Math.min(window.devicePixelRatio || 1, 2);
   let width = 0, height = 0;
@@ -76,6 +141,12 @@
   let toastTimer = null;
   let tapTimer = null;
   let lastTap = { id: null, time: 0, blank: false };
+  let highlightedId = null;
+  let highlightUntil = 0;
+  let panelCollapsed = localStorage.getItem(PANEL_KEY) === "hidden";
+  let panelLastTap = { id: null, time: 0 };
+  let panelPressTimer = null;
+  let panelLongPressHandled = false;
 
   const pointers = new Map();
   let gesture = {
@@ -107,12 +178,24 @@
   function randomPosition() {
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    // Deliberately loose: new SEEDs can begin well outside the guide sphere.
     const dist = 0.55 + Math.pow(Math.random(), .72) * 2.15;
     return {
       x: Math.sin(phi) * Math.cos(theta) * dist,
       y: Math.sin(phi) * Math.sin(theta) * dist,
       z: Math.cos(phi) * dist
+    };
+  }
+
+  function fibonacciDirection(index, total) {
+    const count = Math.max(1, total);
+    const golden = Math.PI * (3 - Math.sqrt(5));
+    const y = 1 - (2 * (index + .5)) / count;
+    const radial = Math.sqrt(Math.max(0, 1 - y * y));
+    const theta = golden * index;
+    return {
+      x: Math.cos(theta) * radial,
+      y,
+      z: Math.sin(theta) * radial
     };
   }
 
@@ -130,12 +213,66 @@
     return choice(SIZE_OPTIONS);
   }
 
-  function createNode(title, body) {
+  function positionBesideMain() {
+    if (!data?.currentId || data.nodes.length <= 1) {
+      return inverseRotatePoint({ x: .56, y: 0, z: .10 });
+    }
+
+    const existing = data.nodes
+      .filter(node => node.id !== data.currentId)
+      .map(node => rotatePoint(node.pos));
+
+    const phase = Math.random() * Math.PI * 2;
+    const candidates = [];
+    const radii = [.50, .60, .70];
+
+    for (const r of radii) {
+      for (let i = 0; i < 12; i++) {
+        // Prefer horizontal positions first while still allowing a free nearby orbit.
+        const baseAngles = [0, Math.PI, .22, Math.PI - .22, -.22, Math.PI + .22];
+        const angle = i < baseAngles.length
+          ? baseAngles[i]
+          : phase + (i - baseAngles.length) * (Math.PI * 2 / 6);
+
+        candidates.push({
+          x: Math.cos(angle) * r,
+          y: Math.sin(angle) * r * .62,
+          z: -.08 + Math.random() * .32
+        });
+      }
+    }
+
+    let best = candidates[0];
+    let bestScore = -Infinity;
+
+    for (const candidate of candidates) {
+      let nearest = Infinity;
+      for (const point of existing) {
+        const distance = Math.hypot(
+          candidate.x - point.x,
+          candidate.y - point.y,
+          (candidate.z - point.z) * .28
+        );
+        nearest = Math.min(nearest, distance);
+      }
+
+      const horizontalBonus = Math.abs(candidate.x) * .12;
+      const score = nearest + horizontalBonus;
+      if (score > bestScore) {
+        bestScore = score;
+        best = candidate;
+      }
+    }
+
+    return inverseRotatePoint(best);
+  }
+
+  function createNode(title, body, position = null) {
     return {
       id: uid(),
       title: title || "無題のSEED",
       body: body || "",
-      pos: randomPosition(),
+      pos: position || positionBesideMain(),
       color: randomColorKey(),
       size: randomNormalSize(),
       createdAt: Date.now()
@@ -145,12 +282,12 @@
   function createDemoData() {
     const demoTitles = ["記憶", "時間", "写真", "不在", "声", "夢", "境界", "約束", "光", "名前"];
     const nodes = demoTitles.map((title, i) => {
-      const node = createNode(title, "");
+      const node = createNode(title, "", randomPosition());
       node.createdAt += i;
       return node;
     });
     return {
-      version: 2,
+      version: 3,
       nodes,
       links: [
         [nodes[0].id, nodes[2].id],
@@ -164,7 +301,7 @@
 
   function normalizeData(raw) {
     const data = raw && typeof raw === "object" ? raw : createDemoData();
-    data.version = 2;
+    data.version = 3;
     data.nodes = Array.isArray(data.nodes) ? data.nodes : [];
     data.links = Array.isArray(data.links) ? data.links : [];
     data.nodes.forEach((node, index) => {
@@ -182,6 +319,11 @@
     if (!data.currentId || !data.nodes.some(n => n.id === data.currentId)) {
       data.currentId = data.nodes[0]?.id || null;
     }
+
+    if (!data.layoutBackup || typeof data.layoutBackup.positions !== "object") {
+      data.layoutBackup = null;
+    }
+
     return data;
   }
 
@@ -198,6 +340,8 @@
 
   function saveData() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    renderConnectionPanel();
+    updateArrangeControls();
   }
 
   function showToast(message, duration = 1800) {
@@ -212,14 +356,287 @@
     sheet.setAttribute("aria-hidden", open ? "false" : "true");
   }
 
+  function buildColorPalette() {
+    colorPalette.innerHTML = "";
+    for (const key of COLOR_KEYS) {
+      const palette = COLOR_PALETTES[key];
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "color-chip";
+      button.dataset.color = key;
+      button.setAttribute("role", "radio");
+      button.setAttribute("aria-label", COLOR_NAMES[key]);
+      button.title = COLOR_NAMES[key];
+      button.style.background = `radial-gradient(circle at 30% 25%,
+        ${rgba(palette.glow, 1)} 0%,
+        ${rgba(palette.mid, 1)} 54%,
+        ${rgba(palette.dark, 1)} 100%)`;
+
+      button.addEventListener("click", () => selectColor(key));
+      colorPalette.appendChild(button);
+    }
+  }
+
+  function selectColor(key) {
+    const selected = COLOR_KEYS.includes(key) ? key : "ice";
+    colorInput.value = selected;
+    selectedColorName.textContent = COLOR_NAMES[selected];
+
+    colorPalette.querySelectorAll(".color-chip").forEach(button => {
+      const active = button.dataset.color === selected;
+      button.classList.toggle("selected", active);
+      button.setAttribute("aria-checked", active ? "true" : "false");
+    });
+  }
+
+  function getConnectedNodes() {
+    const currentId = data.currentId;
+    if (!currentId) return [];
+
+    const ids = [];
+    const seen = new Set();
+
+    for (const [a, b] of data.links) {
+      let other = null;
+      if (a === currentId) other = b;
+      if (b === currentId) other = a;
+      if (other && !seen.has(other)) {
+        seen.add(other);
+        ids.push(other);
+      }
+    }
+
+    return ids
+      .map(id => data.nodes.find(node => node.id === id))
+      .filter(Boolean);
+  }
+
+  function createPanelSeedButton(node, className) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = className;
+    button.dataset.seedId = node.id;
+    button.textContent = node.title || "無題のSEED";
+    button.title = node.title || "無題のSEED";
+    return button;
+  }
+
+  function renderConnectionPanel() {
+    if (!connectionPanel) return;
+
+    const current = data.nodes.find(node => node.id === data.currentId) || null;
+    panelMainTitle.textContent = current?.title || "NO MAIN";
+    panelMainTitle.title = current?.title || "NO MAIN";
+    panelMainTitle.disabled = !current;
+
+    if (current) {
+      panelMainTitle.dataset.seedId = current.id;
+    } else {
+      delete panelMainTitle.dataset.seedId;
+    }
+
+    const connected = getConnectedNodes();
+    connectionCount.textContent = String(connected.length);
+    connectionList.innerHTML = "";
+
+    for (const node of connected) {
+      connectionList.appendChild(createPanelSeedButton(node, "connection-item"));
+    }
+
+    connectionEmpty.hidden = connected.length > 0;
+    applyPanelState();
+  }
+
+  function applyPanelState() {
+    connectionPanel.classList.toggle("collapsed", panelCollapsed);
+    connectionPanelToggle.textContent = panelCollapsed ? "‹" : "›";
+    connectionPanelToggle.setAttribute("aria-expanded", panelCollapsed ? "false" : "true");
+    connectionPanelToggle.setAttribute(
+      "aria-label",
+      panelCollapsed ? "接続一覧を表示" : "接続一覧を隠す"
+    );
+  }
+
+  function setPanelCollapsed(collapsed) {
+    panelCollapsed = Boolean(collapsed);
+    localStorage.setItem(PANEL_KEY, panelCollapsed ? "hidden" : "visible");
+    applyPanelState();
+  }
+
+  function focusSeed(id) {
+    const node = data.nodes.find(item => item.id === id);
+    if (!node) return;
+
+    highlightedId = id;
+    highlightUntil = performance.now() + 2300;
+
+    connectionPanel.querySelectorAll("[data-seed-id]").forEach(button => {
+      button.classList.toggle("focused", button.dataset.seedId === id);
+    });
+
+    setTimeout(() => {
+      if (highlightedId !== id) return;
+      connectionPanel.querySelectorAll("[data-seed-id]").forEach(button => {
+        button.classList.remove("focused");
+      });
+    }, 1800);
+
+    showToast(`「${node.title}」を発光`, 1150);
+  }
+
+  function updateArrangeControls() {
+    restoreLayoutButton.disabled = !data.layoutBackup;
+  }
+
+  function captureLayoutBackup() {
+    const positions = {};
+    for (const node of data.nodes) {
+      if (node.id === data.currentId) continue;
+      positions[node.id] = {
+        x: node.pos.x,
+        y: node.pos.y,
+        z: node.pos.z
+      };
+    }
+    data.layoutBackup = {
+      createdAt: Date.now(),
+      positions
+    };
+  }
+
+  function setCompactPosition(node, direction, distance) {
+    node.pos = {
+      x: direction.x * distance,
+      y: direction.y * distance,
+      z: direction.z * distance
+    };
+  }
+
+  function arrangeEven(nodes) {
+    const count = nodes.length;
+    nodes
+      .slice()
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
+      .forEach((node, index) => {
+        const direction = fibonacciDirection(index, count);
+        const ratio = (index + 1) / count;
+        const distance = .18 + .56 * Math.cbrt(ratio);
+        setCompactPosition(node, direction, distance);
+      });
+  }
+
+  function arrangeBySize(nodes) {
+    const sorted = nodes
+      .slice()
+      .sort((a, b) => (b.size || 1) - (a.size || 1) || (a.createdAt || 0) - (b.createdAt || 0));
+
+    const count = sorted.length;
+    sorted.forEach((node, index) => {
+      const direction = fibonacciDirection(index, count);
+      const ratio = count <= 1 ? 0 : index / (count - 1);
+      const distance = .20 + .54 * Math.pow(ratio, .80);
+      setCompactPosition(node, direction, distance);
+    });
+  }
+
+  function arrangeByColor(nodes) {
+    const groups = COLOR_KEYS
+      .map(key => ({
+        key,
+        nodes: nodes
+          .filter(node => node.color === key)
+          .sort((a, b) => (b.size || 1) - (a.size || 1))
+      }))
+      .filter(group => group.nodes.length > 0);
+
+    groups.forEach((group, groupIndex) => {
+      const centerDirection = fibonacciDirection(groupIndex, groups.length);
+      const centerDistance = groups.length === 1 ? .30 : .43;
+      const center = {
+        x: centerDirection.x * centerDistance,
+        y: centerDirection.y * centerDistance,
+        z: centerDirection.z * centerDistance
+      };
+
+      const spread = Math.min(.18, .075 + Math.sqrt(group.nodes.length) * .016);
+
+      group.nodes.forEach((node, index) => {
+        if (group.nodes.length === 1) {
+          node.pos = { ...center };
+          return;
+        }
+
+        const localDirection = fibonacciDirection(index, group.nodes.length);
+        const localDistance = .035 + spread * Math.cbrt((index + 1) / group.nodes.length);
+        node.pos = {
+          x: center.x + localDirection.x * localDistance,
+          y: center.y + localDirection.y * localDistance,
+          z: center.z + localDirection.z * localDistance
+        };
+      });
+    });
+  }
+
+  function arrangeNodes(mode) {
+    const nodes = data.nodes.filter(node => node.id !== data.currentId);
+    if (!nodes.length) {
+      showToast("整列する通常SEEDがありません");
+      return;
+    }
+
+    captureLayoutBackup();
+
+    if (mode === "size") arrangeBySize(nodes);
+    if (mode === "color") arrangeByColor(nodes);
+    if (mode === "even") arrangeEven(nodes);
+
+    zoom = 1;
+    velocity = { x: 0, y: 0 };
+    saveData();
+    setSheet(menuSheet, false);
+
+    const labels = {
+      size: "サイズ順に小さく整列しました",
+      color: "色別に小さく整列しました",
+      even: "均等に小さく整列しました"
+    };
+    showToast(labels[mode] || "小さく整列しました", 1500);
+  }
+
+  function restoreLayout() {
+    const backup = data.layoutBackup;
+    if (!backup?.positions) {
+      showToast("戻せる整列前配置がありません");
+      return;
+    }
+
+    for (const node of data.nodes) {
+      const position = backup.positions[node.id];
+      if (!position) continue;
+      node.pos = {
+        x: Number(position.x) || 0,
+        y: Number(position.y) || 0,
+        z: Number(position.z) || 0
+      };
+    }
+
+    data.layoutBackup = null;
+    saveData();
+    setSheet(menuSheet, false);
+    showToast("整列前の配置に戻しました", 1500);
+  }
+
   function openEditor(id = null) {
     isNew = !id;
     editingId = id;
     const node = id ? data.nodes.find(n => n.id === id) : null;
     titleInput.value = node?.title || "";
     bodyInput.value = node?.body || "";
-    colorInput.value = node?.color || "ice";
-    sizeInput.value = String(node?.size ?? 1.0);
+
+    const draftColor = node?.color || randomColorKey();
+    const draftSize = node?.size ?? randomNormalSize();
+    selectColor(draftColor);
+    sizeInput.value = String(draftSize);
     deleteButton.hidden = isNew;
     unlinkButton.hidden = isNew;
     centerButton.hidden = isNew;
@@ -560,6 +977,28 @@
     ctx.restore();
   }
 
+  function drawHighlightAura(p, palette, time) {
+    const radius = p.renderRadius || 10;
+    const pulse = 1 + Math.sin(time * .010) * .08;
+
+    ctx.save();
+    ctx.globalAlpha = .86;
+    ctx.strokeStyle = rgba(palette.mid, .76);
+    ctx.lineWidth = 1.25;
+    ctx.shadowColor = rgba(palette.mid, .68);
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius * 1.82 * pulse, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.globalAlpha = .42;
+    ctx.setLineDash([3, 7]);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius * 2.24 / pulse, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawNode(p, time) {
     const node = p.node;
     const palette = COLOR_PALETTES[node.color] || COLOR_PALETTES.ice;
@@ -576,7 +1015,6 @@
       ? 21.5 + Math.sin(time * .0022) * 1.15
       : 11.8 * (node.size || 1) * p.scale * zoomSize;
 
-    // Front planets can become larger than the centered main SEED.
     const renderRadius = p.core
       ? Math.max(18, Math.min(25, baseRadius))
       : Math.max(3.2, Math.min(34, baseRadius));
@@ -593,18 +1031,28 @@
       p.core
     );
 
+    if (highlightedId === node.id && time < highlightUntil) {
+      drawHighlightAura(p, palette, time);
+    }
+
     let mode = 2;
+
     if (!p.core) {
-      const farBack = (p.depth ?? p.z) < -0.55;
-      if (
-        zoom < .92 ||
-        farBack ||
-        (dense && zoom < 1.35 && (p.depth ?? p.z) < .62)
+      const depth = p.depth ?? p.z;
+      const farView = zoom < .92;
+      const foregroundAtFar = farView && depth > 1.05;
+
+      if (farView) {
+        // v0.7: only foreground planets introduce themselves in a distant view.
+        mode = foregroundAtFar ? 1 : 0;
+      } else if (
+        depth < -0.55 ||
+        (dense && zoom < 1.35 && depth < .62)
       ) {
         mode = 0;
       } else if (
         zoom < 1.70 ||
-        (dense && (p.depth ?? p.z) < .12)
+        (dense && depth < .12)
       ) {
         mode = 1;
       }
@@ -823,6 +1271,52 @@
   document.querySelectorAll("[data-close-sheet]").forEach(el => el.addEventListener("click", closeEditor));
   document.querySelectorAll("[data-close-menu]").forEach(el => el.addEventListener("click", () => setSheet(menuSheet, false)));
 
+  connectionPanelToggle.addEventListener("click", () => {
+    setPanelCollapsed(!panelCollapsed);
+  });
+
+  connectionPanel.addEventListener("pointerdown", event => {
+    const target = event.target.closest("[data-seed-id]");
+    if (!target) return;
+
+    panelLongPressHandled = false;
+    clearTimeout(panelPressTimer);
+    panelPressTimer = setTimeout(() => {
+      panelLongPressHandled = true;
+      openEditor(target.dataset.seedId);
+    }, 560);
+  });
+
+  ["pointerup", "pointercancel", "pointerleave"].forEach(type => {
+    connectionPanel.addEventListener(type, () => {
+      clearTimeout(panelPressTimer);
+      panelPressTimer = null;
+    });
+  });
+
+  connectionPanel.addEventListener("click", event => {
+    const target = event.target.closest("[data-seed-id]");
+    if (!target) return;
+
+    if (panelLongPressHandled) {
+      panelLongPressHandled = false;
+      return;
+    }
+
+    const id = target.dataset.seedId;
+    const now = Date.now();
+    const secondTap = panelLastTap.id === id && now - panelLastTap.time < 1050;
+
+    if (secondTap) {
+      panelLastTap = { id: null, time: 0 };
+      openEditor(id);
+    } else {
+      panelLastTap = { id, time: now };
+      focusSeed(id);
+    }
+  });
+
+
   saveButton.addEventListener("click", () => {
     const title = titleInput.value.trim();
     const body = bodyInput.value.trim();
@@ -918,6 +1412,12 @@
     setSheet(menuSheet, false);
   });
 
+  arrangeSizeButton.addEventListener("click", () => arrangeNodes("size"));
+  arrangeColorButton.addEventListener("click", () => arrangeNodes("color"));
+  arrangeEvenButton.addEventListener("click", () => arrangeNodes("even"));
+  restoreLayoutButton.addEventListener("click", restoreLayout);
+
+
   clearLinksButton.addEventListener("click", () => {
     if (!confirm("すべての接続だけを解除しますか？")) return;
     const removed = clearAllLinks();
@@ -927,7 +1427,7 @@
 
   clearButton.addEventListener("click", () => {
     if (confirm("すべてのSEEDと接続を削除します。先にバックアップを書き出しましたか？")) {
-      data = { version: 2, nodes: [], links: [], currentId: null };
+      data = { version: 3, nodes: [], links: [], currentId: null, layoutBackup: null };
       saveData();
       setSheet(menuSheet, false);
       showToast("生態系を空にしました");
@@ -940,6 +1440,11 @@
     setTimeout(() => gestureHint.classList.add("hidden"), 9000);
   }
 
+  buildColorPalette();
+  selectColor("ice");
+  renderConnectionPanel();
+  updateArrangeControls();
+
   window.addEventListener("resize", resize);
   window.addEventListener("orientationchange", () => setTimeout(resize, 180));
   resize();
@@ -947,7 +1452,7 @@
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./service-worker.js?v=06").catch(() => {});
+      navigator.serviceWorker.register("./service-worker.js?v=07").catch(() => {});
     });
   }
 })();

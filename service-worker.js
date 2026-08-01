@@ -1,9 +1,9 @@
-const CACHE = "seed-spherical-v06";
+const CACHE = "seed-spherical-v07";
 const ASSETS = [
   "./",
   "./index.html",
-  "./style.css?v=06",
-  "./app.js?v=06",
+  "./style.css?v=07",
+  "./app.js?v=07",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png"
