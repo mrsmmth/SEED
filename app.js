@@ -47,7 +47,9 @@
     startedNodeId: null,
     longPressTimer: null,
     pinchDistance: 0,
-    startZoom: 1
+    startZoom: 1,
+    nodeMovingId: null,
+    nodeMoveDirty: false
   };
 
   const demoTitles = ["記憶", "時間", "写真", "不在", "声", "夢", "境界", "約束", "光", "名前"];
@@ -215,9 +217,44 @@
     return { x: x1, y: y1, z: z2 };
   }
 
+  function inverseRotatePoint(pos) {
+    const cosy = Math.cos(rotation.y), siny = Math.sin(rotation.y);
+    const cosx = Math.cos(rotation.x), sinx = Math.sin(rotation.x);
+
+    const y1 = pos.y * cosx + pos.z * sinx;
+    const z1 = -pos.y * sinx + pos.z * cosx;
+    const x = pos.x * cosy - z1 * siny;
+    const z = pos.x * siny + z1 * cosy;
+    return { x, y: y1, z };
+  }
+
+  function moveNodeOnSphere(nodeId, screenX, screenY) {
+    const node = data.nodes.find(n => n.id === nodeId);
+    if (!node || node.id === data.currentId) return;
+
+    const currentCamera = rotatePoint(node.pos);
+    let px = (screenX - cx) / Math.max(1, radius * zoom);
+    let py = (screenY - cy) / Math.max(1, radius * zoom);
+
+    // Keep the dragged point inside the visible sphere.
+    const radial = Math.hypot(px, py);
+    if (radial > 0.97) {
+      px = px / radial * 0.97;
+      py = py / radial * 0.97;
+    }
+
+    // Preserve whether the node was on the front or back hemisphere.
+    const sign = currentCamera.z >= 0 ? 1 : -1;
+    const pz = sign * Math.sqrt(Math.max(0.001, 1 - px * px - py * py));
+    const world = inverseRotatePoint({ x: px, y: py, z: pz });
+    normalizeVector(world);
+    node.pos = world;
+    gesture.nodeMoveDirty = true;
+  }
+
   function projectNode(node) {
     if (node.id === data.currentId) {
-      return { node, x: cx, y: cy, z: 1.28, scale: 1.18, core: true };
+      return { node, x: cx, y: cy, z: 1.28, scale: 1.18, screenScale: Math.min(1.6, Math.max(.86, Math.pow(zoom, .32))), core: true };
     }
     const p = rotatePoint(node.pos);
     const perspective = 2.8 / (3.6 - p.z);
@@ -227,6 +264,7 @@
       y: cy + p.y * radius * perspective * zoom,
       z: p.z,
       scale: perspective,
+      screenScale: Math.min(1.7, Math.max(.56, Math.pow(zoom, .42))),
       core: false
     };
   }
@@ -343,13 +381,57 @@
 
   function drawNode(p, time) {
     const frontness = (p.z + 1) / 2;
-    const title = truncateText(p.node.title || "SEED", p.core ? 18 : 13);
-    const fontSize = p.core ? 17 : Math.max(10.5, 11.5 + frontness * 2.5);
+    const dense = data.nodes.length >= 60;
+    const connectedToCurrent = data.links.some(link =>
+      link.includes(data.currentId) && link.includes(p.node.id)
+    );
+    const showLabel =
+      p.core ||
+      !dense ||
+      zoom >= 1.55 ||
+      connectedToCurrent ||
+      p.z > (zoom < .8 ? .78 : zoom < 1.2 ? .60 : .38);
+
+    if (!showLabel) {
+      const orbRadius = Math.max(3.4, (4.1 + frontness * 3.2) * p.screenScale);
+      const alpha = .20 + frontness * .52;
+      p.hit = {
+        x: p.x - Math.max(13, orbRadius * 1.8),
+        y: p.y - Math.max(13, orbRadius * 1.8),
+        w: Math.max(26, orbRadius * 3.6),
+        h: Math.max(26, orbRadius * 3.6),
+        r: Math.max(14, orbRadius * 1.9)
+      };
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.shadowColor = "rgba(34,72,113,.18)";
+      ctx.shadowBlur = 7 + frontness * 8;
+      const orb = ctx.createRadialGradient(
+        p.x - orbRadius * .35, p.y - orbRadius * .35, orbRadius * .15,
+        p.x, p.y, orbRadius
+      );
+      orb.addColorStop(0, "rgba(255,255,255,.98)");
+      orb.addColorStop(1, "rgba(189,207,228,.78)");
+      ctx.fillStyle = orb;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, orbRadius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(29,70,114,.22)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
+    const title = truncateText(p.node.title || "SEED", p.core ? 18 : (zoom > 1.7 ? 20 : 13));
+    const baseFont = p.core ? 17 : Math.max(10.5, 11.5 + frontness * 2.5);
+    const fontSize = Math.min(24, baseFont * p.screenScale);
     ctx.font = `${p.core ? 650 : 560} ${fontSize}px -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif`;
     const textW = ctx.measureText(title).width;
-    const padX = p.core ? 22 : 15;
-    const w = Math.max(p.core ? 96 : 64, textW + padX * 2);
-    const h = p.core ? 53 : 39;
+    const padX = (p.core ? 22 : 15) * p.screenScale;
+    const w = Math.max((p.core ? 96 : 64) * p.screenScale, textW + padX * 2);
+    const h = (p.core ? 53 : 39) * p.screenScale;
     const pulse = p.core ? 1 + Math.sin(time * .0022) * .025 : 1;
     const x = p.x - (w * pulse) / 2;
     const y = p.y - (h * pulse) / 2;
@@ -446,7 +528,9 @@
     gesture.startedNodeId = hit?.node.id || null;
 
     if (pointers.size === 1) {
-      gesture.dragging = true;
+      gesture.dragging = !gesture.startedNodeId;
+      gesture.nodeMovingId = null;
+      gesture.nodeMoveDirty = false;
       beginLongPress(p, gesture.startedNodeId);
     } else if (pointers.size === 2) {
       clearLongPress();
@@ -473,16 +557,29 @@
       const pts = [...pointers.values()];
       const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
       if (gesture.pinchDistance > 0) {
-        zoom = Math.max(.66, Math.min(1.72, gesture.startZoom * dist / gesture.pinchDistance));
+        zoom = Math.max(.34, Math.min(4.2, gesture.startZoom * dist / gesture.pinchDistance));
       }
       gesture.moved = true;
       return;
     }
 
-    if (!gesture.dragging) return;
     const dx = p.x - gesture.lastX;
     const dy = p.y - gesture.lastY;
-    if (Math.hypot(dx, dy) > 3) {
+    const movement = Math.hypot(dx, dy);
+
+    if (gesture.startedNodeId && movement > 3) {
+      clearLongPress();
+      gesture.moved = true;
+      gesture.nodeMovingId = gesture.startedNodeId;
+      moveNodeOnSphere(gesture.nodeMovingId, p.x, p.y);
+      gesture.lastX = p.x;
+      gesture.lastY = p.y;
+      gesture.lastTime = performance.now();
+      return;
+    }
+
+    if (!gesture.dragging) return;
+    if (movement > 3) {
       gesture.moved = true;
       clearLongPress();
     }
@@ -535,10 +632,17 @@
       if (target) toggleLink(connectState.fromId, target.node.id);
       else showToast("接続をキャンセルしました", 1100);
       connectState = null;
+    } else if (gesture.nodeMovingId) {
+      if (gesture.nodeMoveDirty) {
+        saveData();
+        showToast("SEEDの位置を移動しました", 1100);
+      }
     } else if (!gesture.moved && pointers.size === 1) {
       handleTap(p);
     }
 
+    gesture.nodeMovingId = null;
+    gesture.nodeMoveDirty = false;
     pointers.delete(event.pointerId);
     if (pointers.size === 0) {
       gesture.dragging = false;

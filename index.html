@@ -25,7 +25,7 @@
     </header>
 
     <div id="gestureHint" class="gesture-hint" aria-live="polite">
-      指で回す · タップで開く · ダブルタップで中心へ · 長押しして重ねると接続
+      空白を回す · ピンチで拡大 · SEEDをドラッグで移動 · 長押し接続
     </div>
 
     <button id="addButton" class="add-button" type="button" aria-label="新しいSEEDを追加">＋</button>
@@ -49,6 +49,7 @@
         <div class="sheet-actions">
           <button id="deleteButton" class="text-button danger" type="button">削除</button>
           <div class="action-spacer"></div>
+          <button id="unlinkButton" class="text-button secondary" type="button">接続リセット</button>
           <button id="centerButton" class="text-button secondary" type="button">中心に置く</button>
           <button id="saveButton" class="text-button primary" type="button">保存</button>
         </div>
@@ -75,6 +76,9 @@
         </button>
         <button id="dismissHintButton" class="menu-row" type="button">
           <span>操作ヒントを切り替える</span><small>HINT</small>
+        </button>
+        <button id="clearLinksButton" class="menu-row" type="button">
+          <span>全接続を解除</span><small>LINK</small>
         </button>
         <button id="clearButton" class="menu-row danger-row" type="button">
           <span>すべてのSEEDを削除</span><small>RESET</small>

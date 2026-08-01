@@ -1,4 +1,4 @@
-const CACHE = "seed-spherical-v01";
+const CACHE = "seed-spherical-v03";
 const ASSETS = [
   "./",
   "./index.html",
