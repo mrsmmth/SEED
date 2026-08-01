@@ -25,7 +25,7 @@
     </header>
 
     <div id="gestureHint" class="gesture-hint" aria-live="polite">
-      空白を回す · ピンチで拡大 · SEEDをドラッグで移動 · 長押し接続
+      空白を回す · ピンチで拡大 · 惑星SEEDをドラッグで移動 · 長押し接続
     </div>
 
     <button id="addButton" class="add-button" type="button" aria-label="新しいSEEDを追加">＋</button>
@@ -46,6 +46,27 @@
           <span>自由記述</span>
           <textarea id="seedBody" rows="8" placeholder="文脈を気にせず、そのまま書く"></textarea>
         </label>
+        <div class="editor-grid">
+          <label>
+            <span>色</span>
+            <select id="seedColor">
+              <option value="pearl">Pearl</option>
+              <option value="ice">Ice</option>
+              <option value="mist">Mist</option>
+              <option value="silver">Silver</option>
+              <option value="navy">Navy</option>
+            </select>
+          </label>
+          <label>
+            <span>サイズ</span>
+            <select id="seedSize">
+              <option value="0.76">S</option>
+              <option value="0.88">M</option>
+              <option value="1.00">L</option>
+              <option value="1.12">XL</option>
+            </select>
+          </label>
+        </div>
         <div class="sheet-actions">
           <button id="deleteButton" class="text-button danger" type="button">削除</button>
           <div class="action-spacer"></div>
@@ -89,6 +110,6 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </main>
-  <script src="./app.js?v=04"></script>
+  <script src="./app.js?v=05"></script>
 </body>
 </html>

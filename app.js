@@ -3,6 +3,16 @@
 
   const STORAGE_KEY = "seed-spherical-notes-v1";
   const HINT_KEY = "seed-spherical-hint-v1";
+  const MAIN_SIZE = 1.34;
+  const SIZE_OPTIONS = [0.76, 0.88, 1.0, 1.12];
+  const COLOR_KEYS = ["pearl", "ice", "mist", "silver", "navy"];
+  const COLOR_PALETTES = {
+    pearl: { glow: [255, 247, 235], mid: [249, 252, 255], dark: [204, 224, 244], label: [20, 58, 99] },
+    ice:   { glow: [242, 251, 255], mid: [232, 245, 255], dark: [165, 207, 241], label: [22, 66, 112] },
+    mist:  { glow: [247, 249, 255], mid: [240, 244, 255], dark: [180, 196, 225], label: [25, 64, 108] },
+    silver:{ glow: [250, 252, 255], mid: [238, 242, 248], dark: [175, 188, 205], label: [27, 63, 103] },
+    navy:  { glow: [238, 245, 255], mid: [219, 233, 248], dark: [120, 155, 206], label: [22, 58, 100] }
+  };
 
   const canvas = document.getElementById("universe");
   const ctx = canvas.getContext("2d", { alpha: false });
@@ -12,6 +22,8 @@
   const menuSheet = document.getElementById("menuSheet");
   const titleInput = document.getElementById("seedTitle");
   const bodyInput = document.getElementById("seedBody");
+  const colorInput = document.getElementById("seedColor");
+  const sizeInput = document.getElementById("seedSize");
   const saveButton = document.getElementById("saveButton");
   const deleteButton = document.getElementById("deleteButton");
   const unlinkButton = document.getElementById("unlinkButton");
@@ -54,30 +66,64 @@
     nodeMoveDirty: false
   };
 
-  const demoTitles = ["記憶", "時間", "写真", "不在", "声", "夢", "境界", "約束", "光", "名前"];
-
   function uid() {
     return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
-  function fibonacciPosition(index, total) {
-    const golden = Math.PI * (3 - Math.sqrt(5));
-    const y = 1 - (index / Math.max(1, total - 1)) * 2;
-    const r = Math.sqrt(Math.max(0, 1 - y * y));
-    const theta = golden * index;
-    return { x: Math.cos(theta) * r, y, z: Math.sin(theta) * r };
+  function choice(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  function rgba(arr, alpha = 1) {
+    return `rgba(${arr[0]}, ${arr[1]}, ${arr[2]}, ${alpha})`;
+  }
+
+  function randomPosition() {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const dist = 0.65 + Math.random() * 0.95; // can exceed guide sphere
+    return {
+      x: Math.sin(phi) * Math.cos(theta) * dist,
+      y: Math.sin(phi) * Math.sin(theta) * dist,
+      z: Math.cos(phi) * dist
+    };
+  }
+
+  function clampNormalSeedSize(size) {
+    const n = Number(size);
+    if (!Number.isFinite(n)) return 1.0;
+    return Math.max(SIZE_OPTIONS[0], Math.min(SIZE_OPTIONS[SIZE_OPTIONS.length - 1], n));
+  }
+
+  function randomColorKey() {
+    return choice(COLOR_KEYS);
+  }
+
+  function randomNormalSize() {
+    return choice(SIZE_OPTIONS);
+  }
+
+  function createNode(title, body) {
+    return {
+      id: uid(),
+      title: title || "無題のSEED",
+      body: body || "",
+      pos: randomPosition(),
+      color: randomColorKey(),
+      size: randomNormalSize(),
+      createdAt: Date.now()
+    };
   }
 
   function createDemoData() {
-    const nodes = demoTitles.map((title, index) => ({
-      id: uid(),
-      title,
-      body: "",
-      pos: fibonacciPosition(index, demoTitles.length),
-      createdAt: Date.now() + index
-    }));
+    const demoTitles = ["記憶", "時間", "写真", "不在", "声", "夢", "境界", "約束", "光", "名前"];
+    const nodes = demoTitles.map((title, i) => {
+      const node = createNode(title, "");
+      node.createdAt += i;
+      return node;
+    });
     return {
-      version: 1,
+      version: 2,
       nodes,
       links: [
         [nodes[0].id, nodes[2].id],
@@ -91,24 +137,25 @@
 
   function normalizeData(raw) {
     const data = raw && typeof raw === "object" ? raw : createDemoData();
-    data.version = 1;
+    data.version = 2;
     data.nodes = Array.isArray(data.nodes) ? data.nodes : [];
     data.links = Array.isArray(data.links) ? data.links : [];
     data.nodes.forEach((node, index) => {
       node.id ||= uid();
       node.title ||= `SEED ${index + 1}`;
       node.body ||= "";
-      if (!node.pos || !Number.isFinite(node.pos.x)) {
-        node.pos = fibonacciPosition(index, Math.max(data.nodes.length, 1));
+      if (!node.pos || !Number.isFinite(node.pos.x) || !Number.isFinite(node.pos.y) || !Number.isFinite(node.pos.z)) {
+        node.pos = randomPosition();
       }
+      if (!COLOR_KEYS.includes(node.color)) node.color = randomColorKey();
+      node.size = clampNormalSeedSize(node.size);
+      node.createdAt ||= Date.now() + index;
     });
     if (!data.currentId || !data.nodes.some(n => n.id === data.currentId)) {
       data.currentId = data.nodes[0]?.id || null;
     }
     return data;
   }
-
-  let data = normalizeData(loadData());
 
   function loadData() {
     try {
@@ -118,6 +165,8 @@
       return createDemoData();
     }
   }
+
+  let data = normalizeData(loadData());
 
   function saveData() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -141,11 +190,13 @@
     const node = id ? data.nodes.find(n => n.id === id) : null;
     titleInput.value = node?.title || "";
     bodyInput.value = node?.body || "";
+    colorInput.value = node?.color || "ice";
+    sizeInput.value = String(node?.size ?? 1.0);
     deleteButton.hidden = isNew;
     unlinkButton.hidden = isNew;
     centerButton.hidden = isNew;
     setSheet(editorSheet, true);
-    setTimeout(() => titleInput.focus(), 300);
+    setTimeout(() => titleInput.focus(), 280);
   }
 
   function closeEditor() {
@@ -155,29 +206,12 @@
   }
 
   function addSeed(title, body) {
-    const index = data.nodes.length;
-    const node = {
-      id: uid(),
-      title: title || `SEED ${index + 1}`,
-      body: body || "",
-      pos: fibonacciPosition(index + 1, index + 2),
-      createdAt: Date.now()
-    };
-    const jitter = 0.18;
-    node.pos.x += (Math.random() - 0.5) * jitter;
-    node.pos.y += (Math.random() - 0.5) * jitter;
-    node.pos.z += (Math.random() - 0.5) * jitter;
-    normalizeVector(node.pos);
+    const node = createNode(title, body);
     data.nodes.push(node);
     if (!data.currentId) data.currentId = node.id;
     saveData();
     showToast("新しいSEEDが生まれました");
     return node;
-  }
-
-  function normalizeVector(v) {
-    const len = Math.hypot(v.x, v.y, v.z) || 1;
-    v.x /= len; v.y /= len; v.z /= len;
   }
 
   function removeSeed(id) {
@@ -246,45 +280,47 @@
     return { x, y: y1, z };
   }
 
-  function moveNodeOnSphere(nodeId, screenX, screenY) {
+  function moveNodeInVolume(nodeId, screenX, screenY) {
     const node = data.nodes.find(n => n.id === nodeId);
     if (!node || node.id === data.currentId) return;
-
     const currentCamera = rotatePoint(node.pos);
-    const dragRadius = Math.max(1, radius * zoom * 1.12);
-    let px = (screenX - cx) / dragRadius;
-    let py = (screenY - cy) / dragRadius;
+    const dragBase = Math.max(1, radius * zoom);
+    let px = (screenX - cx) / dragBase;
+    let py = (screenY - cy) / dragBase;
+    px = Math.max(-1.8, Math.min(1.8, px));
+    py = Math.max(-1.8, Math.min(1.8, py));
 
-    // Let a SEED travel almost to the full visible edge of the sphere.
-    const radial = Math.hypot(px, py);
-    if (radial > 0.998) {
-      px = px / radial * 0.998;
-      py = py / radial * 0.998;
-    }
-
-    // Preserve whether the node was on the front or back hemisphere.
-    const sign = currentCamera.z >= 0 ? 1 : -1;
-    const pz = sign * Math.sqrt(Math.max(0.001, 1 - px * px - py * py));
+    let pz = currentCamera.z;
+    pz = Math.max(-1.55, Math.min(1.55, pz));
     const world = inverseRotatePoint({ x: px, y: py, z: pz });
-    normalizeVector(world);
-    node.pos = world;
+    const dist = Math.hypot(world.x, world.y, world.z) || 1;
+    const scale = dist > 1.85 ? 1.85 / dist : 1;
+    node.pos = { x: world.x * scale, y: world.y * scale, z: world.z * scale };
     gesture.nodeMoveDirty = true;
   }
 
   function projectNode(node) {
     if (node.id === data.currentId) {
-      return { node, x: cx, y: cy, z: 1.28, scale: 1.18, screenScale: Math.min(1.6, Math.max(.86, Math.pow(zoom, .32))), core: true };
+      return {
+        node,
+        x: cx,
+        y: cy,
+        z: 0,
+        scale: 1,
+        core: true,
+        projected: { x: 0, y: 0, z: 0 }
+      };
     }
     const p = rotatePoint(node.pos);
-    const perspective = 2.8 / (3.6 - p.z);
+    const perspective = 3.0 / (4.35 - p.z);
     return {
       node,
       x: cx + p.x * radius * perspective * zoom,
       y: cy + p.y * radius * perspective * zoom,
       z: p.z,
       scale: perspective,
-      screenScale: Math.min(1.7, Math.max(.56, Math.pow(zoom, .42))),
-      core: false
+      core: false,
+      projected: p
     };
   }
 
@@ -298,77 +334,59 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     cx = width / 2;
     cy = height * 0.52;
-    radius = Math.min(width, height) * 0.46;
+    radius = Math.min(width, height) * 0.43;
   }
 
-  const dust = Array.from({ length: 95 }, (_, i) => ({
-    x: Math.random(), y: Math.random(), r: 0.4 + Math.random() * 1.4,
-    a: 0.035 + Math.random() * 0.10, phase: Math.random() * Math.PI * 2
+  const dust = Array.from({ length: 110 }, () => ({
+    x: Math.random(),
+    y: Math.random(),
+    r: 0.4 + Math.random() * 1.6,
+    a: 0.03 + Math.random() * 0.08,
+    phase: Math.random() * Math.PI * 2
   }));
 
   function drawBackground(time) {
-    const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(width, height) * 0.82);
+    const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(width, height) * 0.84);
     bg.addColorStop(0, "#ffffff");
-    bg.addColorStop(0.54, "#f9fbff");
-    bg.addColorStop(1, "#eaf1f8");
+    bg.addColorStop(0.52, "#f8fbff");
+    bg.addColorStop(1, "#e8f0f8");
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, width, height);
 
     dust.forEach((p) => {
-      const driftX = Math.sin(time * 0.00020 + p.phase) * 5;
-      const driftY = Math.cos(time * 0.00016 + p.phase) * 3;
-      const twinkle = .62 + Math.sin(time * 0.0011 + p.phase) * .24;
+      const driftX = Math.sin(time * 0.00018 + p.phase) * 6;
+      const driftY = Math.cos(time * 0.00015 + p.phase) * 4;
+      const twinkle = .58 + Math.sin(time * 0.001 + p.phase) * .22;
       ctx.beginPath();
       ctx.arc(p.x * width + driftX, p.y * height + driftY, p.r, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(38,78,121,${p.a * twinkle})`;
       ctx.fill();
     });
 
-    // The guide sphere now follows the same zoom as the SEED ecosystem.
     const guideRadius = radius * zoom;
-    const guideFade = Math.max(.025, .075 / Math.max(.75, zoom));
+    const guideFade = Math.max(.025, .07 / Math.max(.75, zoom));
 
-    const halo = ctx.createRadialGradient(
-      cx, cy, guideRadius * .46,
-      cx, cy, Math.max(guideRadius * 1.20, 20)
-    );
+    const halo = ctx.createRadialGradient(cx, cy, guideRadius * .42, cx, cy, guideRadius * 1.26);
     halo.addColorStop(0, "rgba(255,255,255,0)");
-    halo.addColorStop(.72, "rgba(70,116,166,0.018)");
-    halo.addColorStop(1, "rgba(37,83,133,0.078)");
+    halo.addColorStop(.74, "rgba(70,116,166,0.018)");
+    halo.addColorStop(1, "rgba(37,83,133,0.082)");
     ctx.fillStyle = halo;
     ctx.beginPath();
-    ctx.arc(cx, cy, Math.max(guideRadius * 1.20, 12), 0, Math.PI * 2);
+    ctx.arc(cx, cy, guideRadius * 1.26, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.save();
-    ctx.shadowColor = "rgba(44,91,143,.12)";
-    ctx.shadowBlur = 7;
     ctx.strokeStyle = `rgba(31,70,113,${guideFade})`;
     ctx.lineWidth = 1;
     ctx.setLineDash([2, 10]);
-
     ctx.beginPath();
-    ctx.arc(cx, cy, guideRadius * 1.03, 0, Math.PI * 2);
+    ctx.arc(cx, cy, guideRadius * 1.01, 0, Math.PI * 2);
     ctx.stroke();
-
     ctx.beginPath();
-    ctx.ellipse(
-      cx, cy,
-      guideRadius * 1.03,
-      guideRadius * .29,
-      rotation.y * .20,
-      0, Math.PI * 2
-    );
+    ctx.ellipse(cx, cy, guideRadius * 1.01, guideRadius * .28, rotation.y * .2, 0, Math.PI * 2);
     ctx.stroke();
-
     ctx.beginPath();
-    ctx.ellipse(
-      cx, cy,
-      guideRadius * .34,
-      guideRadius * 1.03,
-      rotation.x * .18,
-      0, Math.PI * 2
-    );
+    ctx.ellipse(cx, cy, guideRadius * .35, guideRadius * 1.01, rotation.x * .18, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
   }
@@ -383,15 +401,15 @@
       const pa = linePoint(a), pb = linePoint(b);
       if (!pa || !pb) continue;
       const depth = Math.max(-1, Math.min(1, (pa.z + pb.z) / 2));
-      const alpha = 0.12 + (depth + 1) * 0.12;
+      const alpha = 0.10 + (depth + 1) * 0.14;
       const grad = ctx.createLinearGradient(pa.x, pa.y, pb.x, pb.y);
       grad.addColorStop(0, `rgba(30,78,132,${alpha})`);
-      grad.addColorStop(.5, `rgba(80,137,195,${Math.min(.56, alpha + .18)})`);
+      grad.addColorStop(.5, `rgba(96,156,214,${Math.min(.58, alpha + .22)})`);
       grad.addColorStop(1, `rgba(30,78,132,${alpha})`);
       ctx.strokeStyle = grad;
-      ctx.lineWidth = (pa.core || pb.core) ? 1.75 : 1.05;
-      ctx.shadowColor = "rgba(60,119,180,.23)";
-      ctx.shadowBlur = (pa.core || pb.core) ? 10 : 6;
+      ctx.lineWidth = (pa.core || pb.core) ? 1.9 : 1.05;
+      ctx.shadowColor = "rgba(77,146,210,.28)";
+      ctx.shadowBlur = (pa.core || pb.core) ? 12 : 7;
       ctx.beginPath();
       ctx.moveTo(pa.x, pa.y);
       const mx = (pa.x + pb.x) / 2;
@@ -403,10 +421,10 @@
     if (connectState) {
       const start = linePoint(connectState.fromId);
       if (start) {
-        ctx.strokeStyle = "rgba(26,75,128,.72)";
-        ctx.lineWidth = 1.7;
-        ctx.shadowColor = "rgba(49,110,173,.34)";
-        ctx.shadowBlur = 10;
+        ctx.strokeStyle = "rgba(26,75,128,.76)";
+        ctx.lineWidth = 1.8;
+        ctx.shadowColor = "rgba(49,110,173,.36)";
+        ctx.shadowBlur = 12;
         ctx.setLineDash([5, 6]);
         ctx.beginPath();
         ctx.moveTo(start.x, start.y);
@@ -418,115 +436,121 @@
     ctx.restore();
   }
 
-  function roundedRectPath(x, y, w, h, r) {
-    const rr = Math.min(r, w / 2, h / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + rr, y);
-    ctx.arcTo(x + w, y, x + w, y + h, rr);
-    ctx.arcTo(x + w, y + h, x, y + h, rr);
-    ctx.arcTo(x, y + h, x, y, rr);
-    ctx.arcTo(x, y, x + w, y, rr);
-    ctx.closePath();
-  }
-
   function truncateText(text, max) {
     return text.length > max ? text.slice(0, max - 1) + "…" : text;
   }
 
-  function drawNode(p, time) {
-    const frontness = (p.z + 1) / 2;
-    const dense = data.nodes.length >= 36;
+  function drawPlanet(x, y, r, palette, glowBoost = 1, core = false) {
+    ctx.save();
+    const glow = ctx.createRadialGradient(x - r * .28, y - r * .3, r * .1, x, y, r * 1.7);
+    glow.addColorStop(0, rgba(palette.glow, core ? .92 : .72));
+    glow.addColorStop(.5, rgba(palette.mid, core ? .30 * glowBoost : .16 * glowBoost));
+    glow.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.7, 0, Math.PI * 2);
+    ctx.fill();
 
-    let mode = 2; // 0: symbol only, 1: compact title, 2: full title
+    ctx.shadowColor = core ? "rgba(76,142,206,.52)" : "rgba(81,137,196,.22)";
+    ctx.shadowBlur = core ? 24 : 8;
+
+    const body = ctx.createRadialGradient(x - r * .35, y - r * .35, r * .12, x, y, r);
+    body.addColorStop(0, rgba(palette.glow, .98));
+    body.addColorStop(.58, rgba(palette.mid, .96));
+    body.addColorStop(1, rgba(palette.dark, .95));
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowColor = "transparent";
+    ctx.strokeStyle = core ? "rgba(18,65,108,.90)" : "rgba(25,68,111,.28)";
+    ctx.lineWidth = core ? 1.3 : 1;
+    ctx.stroke();
+
+    if (core) {
+      ctx.strokeStyle = "rgba(125,188,231,.62)";
+      ctx.lineWidth = .8;
+      ctx.beginPath();
+      ctx.arc(x, y, r * .78, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawLabel(p, title, mode, palette) {
+    const radiusPx = p.renderRadius;
+    const labelAlpha = p.core ? .96 : (.42 + Math.max(0, p.z) * .20);
+    const textSize = p.core ? 15 : (mode === 1 ? 11 : 12.5);
+    ctx.font = `${p.core ? 650 : 560} ${textSize}px -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif`;
+    const textW = ctx.measureText(title).width;
+
+    const ringW = radiusPx * (p.core ? 2.1 : 1.9) + textW + 26;
+    const ringH = radiusPx * (p.core ? .90 : .78);
+
+    ctx.save();
+    ctx.globalAlpha = labelAlpha;
+    ctx.strokeStyle = rgba(palette.label, p.core ? .34 : .24);
+    ctx.lineWidth = .95;
+    ctx.beginPath();
+    ctx.ellipse(p.x + radiusPx * .42, p.y, ringW / 2, ringH / 2, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = rgba(palette.label, p.core ? .96 : .88);
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(title, p.x + radiusPx + 12, p.y);
+
+    const hitX = p.x - radiusPx;
+    const hitY = p.y - Math.max(radiusPx, 18);
+    const hitW = ringW * .72 + radiusPx;
+    const hitH = Math.max(32, ringH + 18);
+    p.hit = {
+      x: hitX,
+      y: hitY,
+      w: hitW,
+      h: hitH,
+      r: Math.max(radiusPx, hitH / 2)
+    };
+    ctx.restore();
+  }
+
+  function drawNode(p, time) {
+    const node = p.node;
+    const palette = COLOR_PALETTES[node.color] || COLOR_PALETTES.ice;
+    const frontness = (p.z + 1.8) / 3.6;
+    const dense = data.nodes.length >= 42;
+    const baseRadius = p.core
+      ? 22 + Math.sin(time * .0022) * 1.2
+      : (7.6 + Math.max(-1.2, p.z) * 1.2) * (node.size || 1) * (0.92 + zoom * .08) * p.scale;
+
+    const renderRadius = Math.max(p.core ? 18 : 4.2, Math.min(p.core ? 26 : 17, baseRadius));
+    p.renderRadius = renderRadius;
+
+    drawPlanet(p.x, p.y, renderRadius, palette, p.core ? 1.5 : 1, p.core);
+
+    let mode = 2;
     if (!p.core) {
-      if (zoom < .64 || (dense && zoom < 1.15 && p.z < .66)) {
+      if (zoom < .92 || (dense && zoom < 1.30 && p.z < .55)) {
         mode = 0;
-      } else if (zoom < 1.42 || (dense && p.z < .14)) {
+      } else if (zoom < 1.65 || (dense && p.z < .08)) {
         mode = 1;
       }
     }
 
     if (mode === 0) {
-      const size = Math.max(6, Math.min(14, (7 + frontness * 4) * p.screenScale));
       p.hit = {
-        x: p.x - 14,
-        y: p.y - 14,
-        w: 28,
-        h: 28,
-        r: 14
+        x: p.x - 16,
+        y: p.y - 16,
+        w: 32,
+        h: 32,
+        r: 16
       };
-
-      ctx.save();
-      ctx.globalAlpha = .20 + frontness * .52;
-      ctx.strokeStyle = `rgba(20,58,99,${.30 + frontness * .42})`;
-      ctx.lineWidth = 1;
-      ctx.shadowColor = "rgba(48,105,166,.18)";
-      ctx.shadowBlur = 6;
-      ctx.strokeRect(p.x - size / 2, p.y - size / 2, size, size);
-      ctx.restore();
       return;
     }
 
-    const maxChars = p.core ? 18 : (mode === 1 ? 9 : (zoom > 1.9 ? 22 : 15));
-    const title = truncateText(p.node.title || "SEED", maxChars);
-    const baseFont = p.core ? 16.5 : (mode === 1 ? 10.5 : 12.2 + frontness * 1.6);
-    const fontSize = Math.max(9, Math.min(21, baseFont * p.screenScale));
-    ctx.font = `${p.core ? 650 : 560} ${fontSize}px -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif`;
-
-    const textW = ctx.measureText(title).width;
-    const padX = (p.core ? 20 : (mode === 1 ? 10 : 14)) * p.screenScale;
-    const minW = (p.core ? 108 : (mode === 1 ? 42 : 70)) * p.screenScale;
-    const w = Math.max(minW, textW + padX * 2);
-    const h = (p.core ? 44 : (mode === 1 ? 24 : 31)) * p.screenScale;
-    const pulse = p.core ? 1 + Math.sin(time * .0020) * .018 : 1;
-    const drawW = w * pulse;
-    const drawH = h * pulse;
-    const x = p.x - drawW / 2;
-    const y = p.y - drawH / 2;
-
-    p.hit = { x, y, w: drawW, h: drawH, r: Math.max(drawW, drawH) * .62 };
-
-    ctx.save();
-    ctx.globalAlpha = p.core ? .99 : (.30 + frontness * .56);
-
-    if (p.core) {
-      const aura = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, Math.max(drawW, drawH) * .92);
-      aura.addColorStop(0, "rgba(115,163,214,.22)");
-      aura.addColorStop(.56, "rgba(78,133,191,.10)");
-      aura.addColorStop(1, "rgba(60,112,171,0)");
-      ctx.fillStyle = aura;
-      ctx.fillRect(
-        p.x - Math.max(drawW, drawH),
-        p.y - Math.max(drawW, drawH),
-        Math.max(drawW, drawH) * 2,
-        Math.max(drawW, drawH) * 2
-      );
-
-      ctx.shadowColor = "rgba(58,121,188,.48)";
-      ctx.shadowBlur = 22 + Math.sin(time * .0020) * 5;
-      ctx.strokeStyle = "rgba(22,66,112,.88)";
-      ctx.lineWidth = 1.35;
-      ctx.strokeRect(x, y, drawW, drawH);
-
-      ctx.shadowBlur = 8;
-      ctx.strokeStyle = "rgba(99,151,205,.72)";
-      ctx.lineWidth = .8;
-      ctx.strokeRect(x + 4, y + 4, drawW - 8, drawH - 8);
-      ctx.fillStyle = "#102f52";
-    } else {
-      ctx.shadowColor = "rgba(60,116,177,.16)";
-      ctx.shadowBlur = mode === 1 ? 5 : 8;
-      ctx.strokeStyle = `rgba(18,57,99,${.38 + frontness * .42})`;
-      ctx.lineWidth = .9;
-      ctx.strokeRect(x, y, drawW, drawH);
-      ctx.fillStyle = `rgba(17,52,91,${.52 + frontness * .42})`;
-    }
-
-    ctx.shadowColor = "transparent";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(title, p.x, p.y + .2);
-    ctx.restore();
+    const title = truncateText(node.title || "SEED", p.core ? 18 : (mode === 1 ? 9 : 18));
+    drawLabel(p, title, mode, palette);
   }
 
   function render(time = 0) {
@@ -630,7 +654,7 @@
       clearLongPress();
       gesture.moved = true;
       gesture.nodeMovingId = gesture.startedNodeId;
-      moveNodeOnSphere(gesture.nodeMovingId, p.x, p.y);
+      moveNodeInVolume(gesture.nodeMovingId, p.x, p.y);
       gesture.lastX = p.x;
       gesture.lastY = p.y;
       gesture.lastTime = performance.now();
@@ -642,6 +666,7 @@
       gesture.moved = true;
       clearLongPress();
     }
+
     const now = performance.now();
     const dt = Math.max(8, now - gesture.lastTime);
     const factor = 0.006 / Math.max(.72, zoom);
@@ -728,17 +753,26 @@
   saveButton.addEventListener("click", () => {
     const title = titleInput.value.trim();
     const body = bodyInput.value.trim();
+    const color = COLOR_KEYS.includes(colorInput.value) ? colorInput.value : "ice";
+    const size = clampNormalSeedSize(sizeInput.value);
+
     if (!title && !body) {
       showToast("名前か本文を入れてください");
       return;
     }
+
     if (isNew) {
-      addSeed(title || "無題のSEED", body);
+      const node = addSeed(title || "無題のSEED", body);
+      node.color = color;
+      node.size = size;
+      saveData();
     } else {
       const node = data.nodes.find(n => n.id === editingId);
       if (node) {
         node.title = title || "無題のSEED";
         node.body = body;
+        node.color = color;
+        node.size = size;
         saveData();
         showToast("保存しました");
       }
@@ -749,10 +783,7 @@
   unlinkButton.addEventListener("click", () => {
     if (!editingId) return;
     const removed = removeLinksForSeed(editingId);
-    showToast(
-      removed ? `${removed}件の接続を解除しました` : "このSEEDに接続はありません",
-      1500
-    );
+    showToast(removed ? `${removed}件の接続を解除しました` : "このSEEDに接続はありません", 1500);
   });
 
   centerButton.addEventListener("click", () => {
@@ -818,15 +849,12 @@
     if (!confirm("すべての接続だけを解除しますか？")) return;
     const removed = clearAllLinks();
     setSheet(menuSheet, false);
-    showToast(
-      removed ? `${removed}件の接続を解除しました` : "解除する接続はありません",
-      1500
-    );
+    showToast(removed ? `${removed}件の接続を解除しました` : "解除する接続はありません", 1500);
   });
 
   clearButton.addEventListener("click", () => {
     if (confirm("すべてのSEEDと接続を削除します。先にバックアップを書き出しましたか？")) {
-      data = { version: 1, nodes: [], links: [], currentId: null };
+      data = { version: 2, nodes: [], links: [], currentId: null };
       saveData();
       setSheet(menuSheet, false);
       showToast("生態系を空にしました");
@@ -846,7 +874,7 @@
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+      navigator.serviceWorker.register("./service-worker.js?v=05").catch(() => {});
     });
   }
 })();

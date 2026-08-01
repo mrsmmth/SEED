@@ -296,3 +296,29 @@ button { -webkit-user-select: none; user-select: none; }
 @media (max-width: 560px) {
   #unlinkButton { flex-basis: 42%; }
 }
+
+
+.editor-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 4px;
+}
+.sheet select {
+  display: block;
+  width: 100%;
+  border: 1px solid rgba(29,70,114,0.12);
+  border-radius: 16px;
+  outline: none;
+  background: rgba(255,255,255,0.92);
+  padding: 13px 14px;
+  font-size: 16px;
+  line-height: 1.65;
+}
+.sheet select:focus {
+  border-color: rgba(49,95,154,.45);
+  box-shadow: 0 0 0 4px rgba(49,95,154,.08);
+}
+@media (max-width: 560px) {
+  .editor-grid { grid-template-columns: 1fr; }
+}
