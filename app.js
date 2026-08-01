@@ -161,7 +161,7 @@
   let panelLongPressHandled = false;
 
   let autoView = {
-    enabled: false,
+    mode: 0,
     phase: "idle",
     from: null,
     target: null,
@@ -171,6 +171,13 @@
     resumeAt: 0,
     lastFocusId: null
   };
+
+  const AUTO_VIEW_LEVELS = [
+    { label: "OFF", moving: 0, holdMin: 0, holdMax: 0 },
+    { label: "SLOW", moving: 1.28, holdMin: 2600, holdMax: 3400 },
+    { label: "MID", moving: 1.0, holdMin: 1800, holdMax: 2400 },
+    { label: "FAST", moving: 0.72, holdMin: 1000, holdMax: 1500 }
+  ];
 
   const pointers = new Map();
   let gesture = {
@@ -450,7 +457,7 @@
     rotation = { ...view.rotation };
     zoom = view.zoom;
     velocity = { x: 0, y: 0 };
-    if (autoView.enabled) resetAutoViewJourney(800);
+    if (autoView.mode > 0) resetAutoViewJourney(800);
   }
 
   function persistActiveUniverse() {
@@ -1019,7 +1026,7 @@
   function setCurrent(id) {
     if (!data.nodes.some(n => n.id === id)) return;
     data.currentId = id;
-    if (autoView.enabled) resetAutoViewJourney(900);
+    if (autoView.mode > 0) resetAutoViewJourney(900);
     saveData();
     showToast("メインSEEDにしました");
   }
@@ -1456,10 +1463,11 @@
     targetY = normalizeAngleNear(targetY, rotation.y);
 
     const distance = Math.hypot(targetX - rotation.x, targetY - rotation.y);
+    const level = AUTO_VIEW_LEVELS[autoView.mode] || AUTO_VIEW_LEVELS[2];
     autoView.from = { x: rotation.x, y: rotation.y };
     autoView.target = { x: targetX, y: targetY };
     autoView.startedAt = time;
-    autoView.duration = Math.max(5600, Math.min(10500, 5200 + distance * 2600));
+    autoView.duration = Math.max(1800, Math.min(13000, (5200 + distance * 2600) * level.moving));
     autoView.phase = "moving";
     velocity = { x: 0, y: 0 };
   }
@@ -1473,7 +1481,7 @@
   }
 
   function updateAutoView(time) {
-    if (!autoView.enabled) return false;
+    if (autoView.mode === 0) return false;
 
     if (autoViewBlocked()) {
       autoView.phase = "waiting";
@@ -1494,9 +1502,10 @@
       rotation.y = autoView.from.y + (autoView.target.y - autoView.from.y) * eased;
 
       if (progress >= 1) {
+        const level = AUTO_VIEW_LEVELS[autoView.mode] || AUTO_VIEW_LEVELS[2];
         rotation = { ...autoView.target };
         autoView.phase = "holding";
-        autoView.holdUntil = time + 1800 + Math.random() * 2400;
+        autoView.holdUntil = time + level.holdMin + Math.random() * Math.max(0, level.holdMax - level.holdMin);
       }
       return true;
     }
@@ -1510,9 +1519,13 @@
   }
 
   function refreshAutoViewButton() {
-    autoViewButton.classList.toggle("active", autoView.enabled);
-    autoViewButton.setAttribute("aria-pressed", autoView.enabled ? "true" : "false");
-    autoViewButton.setAttribute("aria-label", autoView.enabled ? "自動鑑賞を停止" : "自動鑑賞を開始");
+    const current = AUTO_VIEW_LEVELS[autoView.mode] || AUTO_VIEW_LEVELS[0];
+    const active = autoView.mode > 0;
+    autoViewButton.classList.toggle("active", active);
+    autoViewButton.setAttribute("aria-pressed", active ? "true" : "false");
+    autoViewButton.setAttribute("aria-label", `自動鑑賞 ${current.label}`);
+    const label = autoViewButton.querySelector(".auto-view-label");
+    if (label) label.textContent = `AUTO : ${current.label}`;
   }
 
   function resetAutoViewJourney(delay = 700) {
@@ -1523,12 +1536,17 @@
     autoView.lastFocusId = null;
   }
 
-  function setAutoView(enabled) {
-    autoView.enabled = Boolean(enabled);
+  function setAutoViewMode(mode) {
+    autoView.mode = Number(mode) || 0;
     velocity = { x: 0, y: 0 };
-    resetAutoViewJourney(autoView.enabled ? 280 : 0);
+    resetAutoViewJourney(autoView.mode > 0 ? 280 : 0);
     refreshAutoViewButton();
-    showToast(autoView.enabled ? "AUTO VIEWを開始しました" : "AUTO VIEWを停止しました", 1300);
+    const current = AUTO_VIEW_LEVELS[autoView.mode] || AUTO_VIEW_LEVELS[0];
+    showToast(`AUTO VIEW : ${current.label}`, 1300);
+  }
+
+  function cycleAutoViewMode() {
+    setAutoViewMode((autoView.mode + 1) % AUTO_VIEW_LEVELS.length);
   }
 
   function render(time = 0) {
@@ -1725,7 +1743,7 @@
   canvas.addEventListener("contextmenu", e => e.preventDefault());
 
   addButton.addEventListener("click", () => openEditor());
-  autoViewButton.addEventListener("click", () => setAutoView(!autoView.enabled));
+  autoViewButton.addEventListener("click", cycleAutoViewMode);
   menuButton.addEventListener("click", () => setSheet(menuSheet, true));
   universeButton.addEventListener("click", () => setSheet(universeSheet, true));
   universeMenuButton.addEventListener("click", () => {
@@ -1893,7 +1911,7 @@
     rotation = { x: -0.18, y: 0.42 };
     velocity = { x: 0, y: 0 };
     zoom = 1;
-    if (autoView.enabled) resetAutoViewJourney(1100);
+    if (autoView.mode > 0) resetAutoViewJourney(1100);
     saveData();
     setSheet(menuSheet, false);
     showToast("球体の向きを戻しました");
