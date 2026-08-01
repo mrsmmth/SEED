@@ -4,14 +4,40 @@
   const STORAGE_KEY = "seed-spherical-notes-v1";
   const HINT_KEY = "seed-spherical-hint-v1";
   const MAIN_SIZE = 1.34;
+  const GUIDE_SCALE = 0.50;
+  const MAX_FREE_DISTANCE = 3.40;
   const SIZE_OPTIONS = [0.76, 0.88, 1.0, 1.12];
-  const COLOR_KEYS = ["pearl", "ice", "mist", "silver", "navy"];
+  const COLOR_KEYS = ["pearl", "ice", "mint", "violet", "rose", "cobalt", "silver"];
+  const LEGACY_COLOR_MAP = { mist: "violet", navy: "cobalt" };
   const COLOR_PALETTES = {
-    pearl: { glow: [255, 247, 235], mid: [249, 252, 255], dark: [204, 224, 244], label: [20, 58, 99] },
-    ice:   { glow: [242, 251, 255], mid: [232, 245, 255], dark: [165, 207, 241], label: [22, 66, 112] },
-    mist:  { glow: [247, 249, 255], mid: [240, 244, 255], dark: [180, 196, 225], label: [25, 64, 108] },
-    silver:{ glow: [250, 252, 255], mid: [238, 242, 248], dark: [175, 188, 205], label: [27, 63, 103] },
-    navy:  { glow: [238, 245, 255], mid: [219, 233, 248], dark: [120, 155, 206], label: [22, 58, 100] }
+    pearl: {
+      glow: [255, 252, 232], mid: [255, 224, 137], dark: [198, 139, 49],
+      label: [111, 75, 20]
+    },
+    ice: {
+      glow: [236, 253, 255], mid: [126, 222, 246], dark: [40, 137, 191],
+      label: [18, 83, 126]
+    },
+    mint: {
+      glow: [233, 255, 248], mid: [117, 224, 187], dark: [29, 139, 108],
+      label: [18, 92, 73]
+    },
+    violet: {
+      glow: [250, 242, 255], mid: [202, 158, 237], dark: [106, 65, 173],
+      label: [76, 43, 126]
+    },
+    rose: {
+      glow: [255, 241, 247], mid: [238, 148, 179], dark: [175, 65, 105],
+      label: [119, 38, 72]
+    },
+    cobalt: {
+      glow: [239, 246, 255], mid: [102, 158, 235], dark: [25, 67, 148],
+      label: [18, 54, 112]
+    },
+    silver: {
+      glow: [253, 254, 255], mid: [197, 207, 220], dark: [91, 104, 124],
+      label: [54, 66, 84]
+    }
   };
 
   const canvas = document.getElementById("universe");
@@ -81,7 +107,8 @@
   function randomPosition() {
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    const dist = 0.65 + Math.random() * 0.95; // can exceed guide sphere
+    // Deliberately loose: new SEEDs can begin well outside the guide sphere.
+    const dist = 0.55 + Math.pow(Math.random(), .72) * 2.15;
     return {
       x: Math.sin(phi) * Math.cos(theta) * dist,
       y: Math.sin(phi) * Math.sin(theta) * dist,
@@ -147,6 +174,7 @@
       if (!node.pos || !Number.isFinite(node.pos.x) || !Number.isFinite(node.pos.y) || !Number.isFinite(node.pos.z)) {
         node.pos = randomPosition();
       }
+      node.color = LEGACY_COLOR_MAP[node.color] || node.color;
       if (!COLOR_KEYS.includes(node.color)) node.color = randomColorKey();
       node.size = clampNormalSeedSize(node.size);
       node.createdAt ||= Date.now() + index;
@@ -283,19 +311,28 @@
   function moveNodeInVolume(nodeId, screenX, screenY) {
     const node = data.nodes.find(n => n.id === nodeId);
     if (!node || node.id === data.currentId) return;
-    const currentCamera = rotatePoint(node.pos);
-    const dragBase = Math.max(1, radius * zoom);
-    let px = (screenX - cx) / dragBase;
-    let py = (screenY - cy) / dragBase;
-    px = Math.max(-1.8, Math.min(1.8, px));
-    py = Math.max(-1.8, Math.min(1.8, py));
 
-    let pz = currentCamera.z;
-    pz = Math.max(-1.55, Math.min(1.55, pz));
-    const world = inverseRotatePoint({ x: px, y: py, z: pz });
+    const currentCamera = rotatePoint(node.pos);
+    const depth = Math.max(-2.60, Math.min(2.60, currentCamera.z));
+    const perspective = 3.2 / (4.4 - depth);
+    const projectionBase = Math.max(1, radius * zoom * perspective);
+
+    // Map the finger position back into the 3D volume.
+    // The node may sit far outside the visual guide sphere.
+    let px = (screenX - cx) / projectionBase;
+    let py = (screenY - cy) / projectionBase;
+    px = Math.max(-3.20, Math.min(3.20, px));
+    py = Math.max(-3.20, Math.min(3.20, py));
+
+    const world = inverseRotatePoint({ x: px, y: py, z: currentCamera.z });
     const dist = Math.hypot(world.x, world.y, world.z) || 1;
-    const scale = dist > 1.85 ? 1.85 / dist : 1;
-    node.pos = { x: world.x * scale, y: world.y * scale, z: world.z * scale };
+    const fit = dist > MAX_FREE_DISTANCE ? MAX_FREE_DISTANCE / dist : 1;
+
+    node.pos = {
+      x: world.x * fit,
+      y: world.y * fit,
+      z: world.z * fit
+    };
     gesture.nodeMoveDirty = true;
   }
 
@@ -311,13 +348,18 @@
         projected: { x: 0, y: 0, z: 0 }
       };
     }
+
     const p = rotatePoint(node.pos);
-    const perspective = 3.0 / (4.35 - p.z);
+    const depth = Math.max(-2.60, Math.min(2.60, p.z));
+    // Stronger near/far difference. A front planet may visually exceed the sun.
+    const perspective = 3.2 / (4.4 - depth);
+
     return {
       node,
       x: cx + p.x * radius * perspective * zoom,
       y: cy + p.y * radius * perspective * zoom,
       z: p.z,
+      depth,
       scale: perspective,
       core: false,
       projected: p
@@ -363,7 +405,7 @@
       ctx.fill();
     });
 
-    const guideRadius = radius * zoom;
+    const guideRadius = radius * zoom * GUIDE_SCALE;
     const guideFade = Math.max(.025, .07 / Math.max(.75, zoom));
 
     const halo = ctx.createRadialGradient(cx, cy, guideRadius * .42, cx, cy, guideRadius * 1.26);
@@ -440,37 +482,46 @@
     return text.length > max ? text.slice(0, max - 1) + "…" : text;
   }
 
-  function drawPlanet(x, y, r, palette, glowBoost = 1, core = false) {
+  function drawPlanet(x, y, r, palette, depthAlpha = 1, depthStrength = 1, core = false) {
     ctx.save();
-    const glow = ctx.createRadialGradient(x - r * .28, y - r * .3, r * .1, x, y, r * 1.7);
-    glow.addColorStop(0, rgba(palette.glow, core ? .92 : .72));
-    glow.addColorStop(.5, rgba(palette.mid, core ? .30 * glowBoost : .16 * glowBoost));
+    ctx.globalAlpha = core ? 1 : depthAlpha;
+
+    const glow = ctx.createRadialGradient(
+      x - r * .28, y - r * .30, r * .08,
+      x, y, r * (core ? 1.82 : 1.62)
+    );
+    glow.addColorStop(0, rgba(palette.glow, core ? .98 : .84));
+    glow.addColorStop(.48, rgba(palette.mid, core ? .34 : .18 + depthStrength * .12));
     glow.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = glow;
     ctx.beginPath();
-    ctx.arc(x, y, r * 1.7, 0, Math.PI * 2);
+    ctx.arc(x, y, r * (core ? 1.82 : 1.62), 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.shadowColor = core ? "rgba(76,142,206,.52)" : "rgba(81,137,196,.22)";
-    ctx.shadowBlur = core ? 24 : 8;
+    ctx.shadowColor = core
+      ? "rgba(76,142,206,.56)"
+      : `rgba(${palette.dark[0]},${palette.dark[1]},${palette.dark[2]},${.10 + depthStrength * .30})`;
+    ctx.shadowBlur = core ? 25 : 4 + depthStrength * 12;
 
-    const body = ctx.createRadialGradient(x - r * .35, y - r * .35, r * .12, x, y, r);
-    body.addColorStop(0, rgba(palette.glow, .98));
-    body.addColorStop(.58, rgba(palette.mid, .96));
-    body.addColorStop(1, rgba(palette.dark, .95));
+    const body = ctx.createRadialGradient(x - r * .36, y - r * .38, r * .10, x, y, r);
+    body.addColorStop(0, rgba(palette.glow, .99));
+    body.addColorStop(.52, rgba(palette.mid, .97));
+    body.addColorStop(1, rgba(palette.dark, .88 + depthStrength * .12));
     ctx.fillStyle = body;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.shadowColor = "transparent";
-    ctx.strokeStyle = core ? "rgba(18,65,108,.90)" : "rgba(25,68,111,.28)";
-    ctx.lineWidth = core ? 1.3 : 1;
+    ctx.strokeStyle = core
+      ? "rgba(18,65,108,.92)"
+      : rgba(palette.dark, .30 + depthStrength * .62);
+    ctx.lineWidth = core ? 1.35 : .75 + depthStrength * .55;
     ctx.stroke();
 
     if (core) {
-      ctx.strokeStyle = "rgba(125,188,231,.62)";
-      ctx.lineWidth = .8;
+      ctx.strokeStyle = "rgba(125,188,231,.68)";
+      ctx.lineWidth = .85;
       ctx.beginPath();
       ctx.arc(x, y, r * .78, 0, Math.PI * 2);
       ctx.stroke();
@@ -478,9 +529,9 @@
     ctx.restore();
   }
 
-  function drawLabel(p, title, mode, palette) {
+  function drawLabel(p, title, mode, palette, depthAlpha, depthStrength) {
     const radiusPx = p.renderRadius;
-    const labelAlpha = p.core ? .96 : (.42 + Math.max(0, p.z) * .20);
+    const labelAlpha = p.core ? .98 : Math.max(.08, depthAlpha * (.56 + depthStrength * .44));
     const textSize = p.core ? 15 : (mode === 1 ? 11 : 12.5);
     ctx.font = `${p.core ? 650 : 560} ${textSize}px -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif`;
     const textW = ctx.measureText(title).width;
@@ -490,13 +541,13 @@
 
     ctx.save();
     ctx.globalAlpha = labelAlpha;
-    ctx.strokeStyle = rgba(palette.label, p.core ? .34 : .24);
-    ctx.lineWidth = .95;
+    ctx.strokeStyle = rgba(palette.label, p.core ? .38 : .18 + depthStrength * .30);
+    ctx.lineWidth = .80 + depthStrength * .30;
     ctx.beginPath();
     ctx.ellipse(p.x + radiusPx * .42, p.y, ringW / 2, ringH / 2, 0, 0, Math.PI * 2);
     ctx.stroke();
 
-    ctx.fillStyle = rgba(palette.label, p.core ? .96 : .88);
+    ctx.fillStyle = rgba(palette.label, p.core ? .98 : .50 + depthStrength * .50);
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     ctx.fillText(title, p.x + radiusPx + 12, p.y);
@@ -505,52 +556,74 @@
     const hitY = p.y - Math.max(radiusPx, 18);
     const hitW = ringW * .72 + radiusPx;
     const hitH = Math.max(32, ringH + 18);
-    p.hit = {
-      x: hitX,
-      y: hitY,
-      w: hitW,
-      h: hitH,
-      r: Math.max(radiusPx, hitH / 2)
-    };
+    p.hit = { x: hitX, y: hitY, w: hitW, h: hitH, r: Math.max(radiusPx, hitH / 2) };
     ctx.restore();
   }
 
   function drawNode(p, time) {
     const node = p.node;
     const palette = COLOR_PALETTES[node.color] || COLOR_PALETTES.ice;
-    const frontness = (p.z + 1.8) / 3.6;
     const dense = data.nodes.length >= 42;
-    const baseRadius = p.core
-      ? 22 + Math.sin(time * .0022) * 1.2
-      : (7.6 + Math.max(-1.2, p.z) * 1.2) * (node.size || 1) * (0.92 + zoom * .08) * p.scale;
 
-    const renderRadius = Math.max(p.core ? 18 : 4.2, Math.min(p.core ? 26 : 17, baseRadius));
+    const depthNorm = p.core
+      ? .62
+      : Math.max(0, Math.min(1, ((p.depth ?? p.z) + 2.60) / 5.20));
+    const depthStrength = Math.pow(depthNorm, .88);
+    const depthAlpha = p.core ? 1 : .14 + depthStrength * .86;
+
+    const zoomSize = Math.pow(Math.max(.34, zoom), .17);
+    const baseRadius = p.core
+      ? 21.5 + Math.sin(time * .0022) * 1.15
+      : 11.8 * (node.size || 1) * p.scale * zoomSize;
+
+    // Front planets can become larger than the centered main SEED.
+    const renderRadius = p.core
+      ? Math.max(18, Math.min(25, baseRadius))
+      : Math.max(3.2, Math.min(34, baseRadius));
+
     p.renderRadius = renderRadius;
 
-    drawPlanet(p.x, p.y, renderRadius, palette, p.core ? 1.5 : 1, p.core);
+    drawPlanet(
+      p.x,
+      p.y,
+      renderRadius,
+      palette,
+      depthAlpha,
+      depthStrength,
+      p.core
+    );
 
     let mode = 2;
     if (!p.core) {
-      if (zoom < .92 || (dense && zoom < 1.30 && p.z < .55)) {
+      const farBack = (p.depth ?? p.z) < -0.55;
+      if (
+        zoom < .92 ||
+        farBack ||
+        (dense && zoom < 1.35 && (p.depth ?? p.z) < .62)
+      ) {
         mode = 0;
-      } else if (zoom < 1.65 || (dense && p.z < .08)) {
+      } else if (
+        zoom < 1.70 ||
+        (dense && (p.depth ?? p.z) < .12)
+      ) {
         mode = 1;
       }
     }
 
     if (mode === 0) {
+      const hitRadius = Math.max(15, renderRadius + 7);
       p.hit = {
-        x: p.x - 16,
-        y: p.y - 16,
-        w: 32,
-        h: 32,
-        r: 16
+        x: p.x - hitRadius,
+        y: p.y - hitRadius,
+        w: hitRadius * 2,
+        h: hitRadius * 2,
+        r: hitRadius
       };
       return;
     }
 
     const title = truncateText(node.title || "SEED", p.core ? 18 : (mode === 1 ? 9 : 18));
-    drawLabel(p, title, mode, palette);
+    drawLabel(p, title, mode, palette, depthAlpha, depthStrength);
   }
 
   function render(time = 0) {
@@ -874,7 +947,7 @@
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./service-worker.js?v=05").catch(() => {});
+      navigator.serviceWorker.register("./service-worker.js?v=06").catch(() => {});
     });
   }
 })();
