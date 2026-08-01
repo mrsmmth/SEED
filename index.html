@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#f4f7fb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="SEED">
+  <title>SEED — Spherical Notes</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main id="app" aria-label="SEED spherical notes">
+    <canvas id="universe" aria-label="球体状に配置されたSEEDメモ"></canvas>
+
+    <header class="app-header">
+      <div>
+        <h1>SEED</h1>
+        <p>SPHERICAL NOTES</p>
+      </div>
+      <button id="menuButton" class="icon-button" type="button" aria-label="メニュー">•••</button>
+    </header>
+
+    <div id="gestureHint" class="gesture-hint" aria-live="polite">
+      指で回す · タップで開く · ダブルタップで中心へ · 長押しして重ねると接続
+    </div>
+
+    <button id="addButton" class="add-button" type="button" aria-label="新しいSEEDを追加">＋</button>
+
+    <section id="editorSheet" class="sheet" aria-hidden="true">
+      <div class="sheet-backdrop" data-close-sheet></div>
+      <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="editorHeading">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head">
+          <h2 id="editorHeading">SEED</h2>
+          <button class="icon-button compact" type="button" data-close-sheet aria-label="閉じる">×</button>
+        </div>
+        <label>
+          <span>名前</span>
+          <input id="seedTitle" type="text" maxlength="80" placeholder="SEEDの名前">
+        </label>
+        <label>
+          <span>自由記述</span>
+          <textarea id="seedBody" rows="8" placeholder="文脈を気にせず、そのまま書く"></textarea>
+        </label>
+        <div class="sheet-actions">
+          <button id="deleteButton" class="text-button danger" type="button">削除</button>
+          <div class="action-spacer"></div>
+          <button id="centerButton" class="text-button secondary" type="button">中心に置く</button>
+          <button id="saveButton" class="text-button primary" type="button">保存</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="menuSheet" class="sheet" aria-hidden="true">
+      <div class="sheet-backdrop" data-close-menu></div>
+      <div class="sheet-panel menu-panel" role="dialog" aria-modal="true" aria-labelledby="menuHeading">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head">
+          <h2 id="menuHeading">SEED</h2>
+          <button class="icon-button compact" type="button" data-close-menu aria-label="閉じる">×</button>
+        </div>
+        <button id="exportButton" class="menu-row" type="button">
+          <span>バックアップを書き出す</span><small>JSON</small>
+        </button>
+        <label class="menu-row file-row">
+          <span>バックアップを読み込む</span><small>JSON</small>
+          <input id="importInput" type="file" accept=".json,application/json">
+        </label>
+        <button id="resetViewButton" class="menu-row" type="button">
+          <span>球体の向きを戻す</span><small>VIEW</small>
+        </button>
+        <button id="dismissHintButton" class="menu-row" type="button">
+          <span>操作ヒントを切り替える</span><small>HINT</small>
+        </button>
+        <button id="clearButton" class="menu-row danger-row" type="button">
+          <span>すべてのSEEDを削除</span><small>RESET</small>
+        </button>
+        <p class="storage-note">入力内容はこのiPadのブラウザ内に保存されます。ときどきJSONバックアップを書き出してください。</p>
+      </div>
+    </section>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>
