@@ -120,7 +120,7 @@ button { -webkit-user-select: none; user-select: none; }
   font-size: 11px;
   letter-spacing: 0.02em;
   text-align: center;
-  white-space: nowrap;
+  white-space: normal;
   box-shadow: 0 9px 30px rgba(40,67,100,0.07);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -551,4 +551,264 @@ button { -webkit-user-select: none; user-select: none; }
   }
   .connection-panel-inner { max-height: 48vh; }
   .connection-list { max-height: calc(48vh - 104px); }
+}
+
+
+/* =========================================================
+   v0.8 — Multiverse switcher
+   ========================================================= */
+.brand-block { pointer-events: auto; }
+.universe-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: min(46vw, 280px);
+  margin: 5px 0 0 -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 8px;
+  font-weight: 620;
+  letter-spacing: .20em;
+  text-align: left;
+}
+.universe-button span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.universe-chevron {
+  flex: 0 0 auto;
+  margin-top: -2px;
+  font-size: 10px;
+  letter-spacing: 0;
+}
+.sheet-kicker {
+  margin: 0 0 4px !important;
+  color: rgba(42,75,112,.52) !important;
+  font-size: 8px !important;
+  font-weight: 700;
+  letter-spacing: .25em !important;
+}
+.universe-panel,
+.help-panel {
+  width: min(100%, 760px);
+}
+.universe-intro {
+  margin: -5px 0 16px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.75;
+}
+.universe-list {
+  display: grid;
+  gap: 9px;
+}
+.universe-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  min-height: 64px;
+  overflow: hidden;
+  border: 1px solid rgba(29,70,114,.10);
+  border-radius: 18px;
+  background: rgba(255,255,255,.74);
+  box-shadow: 0 7px 18px rgba(35,66,101,.035);
+}
+.universe-row.active {
+  border-color: rgba(44,94,151,.28);
+  box-shadow: 0 9px 24px rgba(39,81,129,.08);
+}
+.universe-open {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+.universe-name {
+  display: block;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: .025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.universe-meta {
+  display: block;
+  margin-top: 5px;
+  color: rgba(62,88,117,.60);
+  font-size: 9px;
+  letter-spacing: .13em;
+}
+.universe-actions {
+  display: flex;
+  align-items: center;
+  padding-right: 8px;
+}
+.universe-action {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(25,58,94,.64);
+  font-size: 15px;
+}
+.universe-action.danger { color: rgba(154,51,66,.78); }
+.create-universe-button {
+  width: 100%;
+  min-height: 54px;
+  margin-top: 12px;
+  border: 1px dashed rgba(35,77,124,.27);
+  border-radius: 18px;
+  background: rgba(238,244,251,.55);
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: .035em;
+}
+
+/* =========================================================
+   v0.8 — Guide
+   ========================================================= */
+.guide-hero {
+  margin: -3px 0 16px;
+  padding: 17px 18px;
+  border: 1px solid rgba(31,75,123,.10);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(170,214,249,.28), transparent 42%),
+    rgba(255,255,255,.72);
+}
+.guide-hero strong {
+  display: block;
+  font-size: 18px;
+  letter-spacing: .035em;
+}
+.guide-hero p {
+  margin: 7px 0 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.75;
+}
+.guide-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.guide-card {
+  min-height: 132px;
+  padding: 14px 15px 15px;
+  border: 1px solid rgba(29,70,114,.085);
+  border-radius: 18px;
+  background: rgba(255,255,255,.66);
+}
+.guide-card.emphasis {
+  border-color: rgba(48,97,153,.22);
+  background:
+    radial-gradient(circle at 15% 10%, rgba(151,207,247,.20), transparent 46%),
+    rgba(255,255,255,.78);
+}
+.guide-index {
+  color: rgba(38,76,118,.42);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .18em;
+}
+.guide-card h3 {
+  margin: 8px 0 6px;
+  font-size: 13px;
+  letter-spacing: .02em;
+}
+.guide-card p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.65;
+}
+.guide-foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 15px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(28,68,111,.09);
+}
+.guide-foot p {
+  flex: 1;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 10px;
+  line-height: 1.6;
+}
+.guide-close { flex: 0 0 auto; }
+
+@media (max-width: 560px) {
+  .guide-grid { grid-template-columns: 1fr; }
+  .guide-card { min-height: 0; }
+  .guide-foot { align-items: stretch; flex-direction: column; }
+  .guide-close { width: 100%; }
+}
+
+
+/* =========================================================
+   v0.9 — AUTO VIEW
+   ========================================================= */
+.auto-view-button {
+  position: absolute;
+  z-index: 5;
+  left: 16px;
+  bottom: calc(25px + var(--safe-bottom));
+  min-width: 112px;
+  height: 42px;
+  padding: 0 15px;
+  border: 1px solid rgba(34, 70, 111, 0.12);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.74);
+  color: rgba(16,40,71,.78);
+  box-shadow: 0 10px 28px rgba(40,67,100,0.10);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 680;
+  letter-spacing: .13em;
+  transition: background .22s ease, color .22s ease, transform .16s ease, box-shadow .22s ease;
+}
+.auto-view-button:active { transform: scale(.96); }
+.auto-view-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: rgba(49,95,154,.35);
+  box-shadow: 0 0 0 0 rgba(118,194,255,0);
+  transition: background .22s ease, box-shadow .22s ease;
+}
+.auto-view-button.active {
+  background: rgba(16,40,71,.90);
+  color: white;
+  box-shadow: 0 13px 31px rgba(18,40,71,0.22);
+}
+.auto-view-button.active .auto-view-dot {
+  background: #dff6ff;
+  box-shadow: 0 0 0 5px rgba(136,215,255,.16), 0 0 12px rgba(187,235,255,.90);
+}
+
+@media (max-width: 520px) {
+  .auto-view-button {
+    min-width: 98px;
+    height: 40px;
+    padding: 0 12px;
+    font-size: 9px;
+  }
 }

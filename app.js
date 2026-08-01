@@ -4,6 +4,7 @@
   const STORAGE_KEY = "seed-spherical-notes-v1";
   const HINT_KEY = "seed-spherical-hint-v1";
   const PANEL_KEY = "seed-connection-panel-v1";
+  const HELP_KEY = "seed-help-seen-v1";
   const MAIN_SIZE = 1.34;
   const GUIDE_SCALE = 0.50;
   const MAX_FREE_DISTANCE = 3.40;
@@ -95,9 +96,12 @@
   const canvas = document.getElementById("universe");
   const ctx = canvas.getContext("2d", { alpha: false });
   const addButton = document.getElementById("addButton");
+  const autoViewButton = document.getElementById("autoViewButton");
   const menuButton = document.getElementById("menuButton");
   const editorSheet = document.getElementById("editorSheet");
   const menuSheet = document.getElementById("menuSheet");
+  const universeSheet = document.getElementById("universeSheet");
+  const helpSheet = document.getElementById("helpSheet");
   const titleInput = document.getElementById("seedTitle");
   const bodyInput = document.getElementById("seedBody");
   const colorInput = document.getElementById("seedColor");
@@ -118,6 +122,14 @@
   const restoreLayoutButton = document.getElementById("restoreLayoutButton");
   const clearLinksButton = document.getElementById("clearLinksButton");
   const clearButton = document.getElementById("clearButton");
+  const universeButton = document.getElementById("universeButton");
+  const activeUniverseName = document.getElementById("activeUniverseName");
+  const universeMenuButton = document.getElementById("universeMenuButton");
+  const universeMenuCount = document.getElementById("universeMenuCount");
+  const universeList = document.getElementById("universeList");
+  const createUniverseButton = document.getElementById("createUniverseButton");
+  const helpButton = document.getElementById("helpButton");
+  const closeHelpButton = document.getElementById("closeHelpButton");
   const gestureHint = document.getElementById("gestureHint");
   const toast = document.getElementById("toast");
 
@@ -147,6 +159,18 @@
   let panelLastTap = { id: null, time: 0 };
   let panelPressTimer = null;
   let panelLongPressHandled = false;
+
+  let autoView = {
+    enabled: false,
+    phase: "idle",
+    from: null,
+    target: null,
+    startedAt: 0,
+    duration: 0,
+    holdUntil: 0,
+    resumeAt: 0,
+    lastFocusId: null
+  };
 
   const pointers = new Map();
   let gesture = {
@@ -279,7 +303,28 @@
     };
   }
 
-  function createDemoData() {
+  function defaultView() {
+    return {
+      rotation: { x: -0.18, y: 0.42 },
+      zoom: 1
+    };
+  }
+
+  function normalizeView(raw) {
+    const fallback = defaultView();
+    const x = Number(raw?.rotation?.x);
+    const y = Number(raw?.rotation?.y);
+    const storedZoom = Number(raw?.zoom);
+    return {
+      rotation: {
+        x: Number.isFinite(x) ? Math.max(-1.45, Math.min(1.45, x)) : fallback.rotation.x,
+        y: Number.isFinite(y) ? y : fallback.rotation.y
+      },
+      zoom: Number.isFinite(storedZoom) ? Math.max(.34, Math.min(4.2, storedZoom)) : fallback.zoom
+    };
+  }
+
+  function createDemoUniverse(name = "UNIVERSE 01") {
     const demoTitles = ["記憶", "時間", "写真", "不在", "声", "夢", "境界", "約束", "光", "名前"];
     const nodes = demoTitles.map((title, i) => {
       const node = createNode(title, "", randomPosition());
@@ -287,6 +332,9 @@
       return node;
     });
     return {
+      id: uid(),
+      name,
+      createdAt: Date.now(),
       version: 3,
       nodes,
       links: [
@@ -295,16 +343,36 @@
         [nodes[4].id, nodes[5].id],
         [nodes[6].id, nodes[8].id]
       ],
-      currentId: nodes[0].id
+      currentId: nodes[0].id,
+      layoutBackup: null,
+      view: defaultView()
     };
   }
 
-  function normalizeData(raw) {
-    const data = raw && typeof raw === "object" ? raw : createDemoData();
-    data.version = 3;
-    data.nodes = Array.isArray(data.nodes) ? data.nodes : [];
-    data.links = Array.isArray(data.links) ? data.links : [];
-    data.nodes.forEach((node, index) => {
+  function createEmptyUniverse(name) {
+    const first = createNode("最初のSEED", "", { x: 0, y: 0, z: 0 });
+    return {
+      id: uid(),
+      name,
+      createdAt: Date.now(),
+      version: 3,
+      nodes: [first],
+      links: [],
+      currentId: first.id,
+      layoutBackup: null,
+      view: defaultView()
+    };
+  }
+
+  function normalizeUniverse(raw, fallbackName = "UNIVERSE 01") {
+    const universe = raw && typeof raw === "object" ? raw : createDemoUniverse(fallbackName);
+    universe.id ||= uid();
+    universe.name = String(universe.name || fallbackName).trim() || fallbackName;
+    universe.createdAt ||= Date.now();
+    universe.version = 3;
+    universe.nodes = Array.isArray(universe.nodes) ? universe.nodes : [];
+    universe.links = Array.isArray(universe.links) ? universe.links : [];
+    universe.nodes.forEach((node, index) => {
       node.id ||= uid();
       node.title ||= `SEED ${index + 1}`;
       node.body ||= "";
@@ -316,33 +384,99 @@
       node.size = clampNormalSeedSize(node.size);
       node.createdAt ||= Date.now() + index;
     });
-    if (!data.currentId || !data.nodes.some(n => n.id === data.currentId)) {
-      data.currentId = data.nodes[0]?.id || null;
+
+    universe.links = universe.links.filter(link =>
+      Array.isArray(link) &&
+      link.length >= 2 &&
+      universe.nodes.some(node => node.id === link[0]) &&
+      universe.nodes.some(node => node.id === link[1]) &&
+      link[0] !== link[1]
+    );
+
+    if (!universe.currentId || !universe.nodes.some(n => n.id === universe.currentId)) {
+      universe.currentId = universe.nodes[0]?.id || null;
     }
 
-    if (!data.layoutBackup || typeof data.layoutBackup.positions !== "object") {
-      data.layoutBackup = null;
+    if (!universe.layoutBackup || typeof universe.layoutBackup.positions !== "object") {
+      universe.layoutBackup = null;
     }
 
-    return data;
+    universe.view = normalizeView(universe.view);
+    return universe;
   }
 
-  function loadData() {
+  function normalizeStore(raw) {
+    if (raw && raw.version === 4 && Array.isArray(raw.universes)) {
+      const universes = raw.universes.map((item, index) =>
+        normalizeUniverse(item, `UNIVERSE ${String(index + 1).padStart(2, "0")}`)
+      );
+      if (!universes.length) universes.push(createDemoUniverse());
+      const activeUniverseId = universes.some(item => item.id === raw.activeUniverseId)
+        ? raw.activeUniverseId
+        : universes[0].id;
+      return {
+        version: 4,
+        activeUniverseId,
+        universes
+      };
+    }
+
+    // v0.7 and earlier used one universe directly. Preserve it as UNIVERSE 01.
+    const legacyUniverse = raw && typeof raw === "object"
+      ? normalizeUniverse({ ...raw, id: raw.id || uid(), name: raw.name || "UNIVERSE 01" }, "UNIVERSE 01")
+      : createDemoUniverse();
+
+    return {
+      version: 4,
+      activeUniverseId: legacyUniverse.id,
+      universes: [legacyUniverse]
+    };
+  }
+
+  function loadStore() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : createDemoData();
+      return normalizeStore(saved ? JSON.parse(saved) : null);
     } catch {
-      return createDemoData();
+      return normalizeStore(null);
     }
   }
 
-  let data = normalizeData(loadData());
+  let store = loadStore();
+  let data = store.universes.find(item => item.id === store.activeUniverseId) || store.universes[0];
+
+  function applyUniverseView() {
+    const view = normalizeView(data.view);
+    rotation = { ...view.rotation };
+    zoom = view.zoom;
+    velocity = { x: 0, y: 0 };
+    if (autoView.enabled) resetAutoViewJourney(800);
+  }
+
+  function persistActiveUniverse() {
+    data.view = {
+      rotation: { x: rotation.x, y: rotation.y },
+      zoom
+    };
+    const index = store.universes.findIndex(item => item.id === data.id);
+    if (index >= 0) store.universes[index] = data;
+    else store.universes.push(data);
+    store.activeUniverseId = data.id;
+  }
+
+  function writeStore() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  }
 
   function saveData() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    persistActiveUniverse();
+    writeStore();
     renderConnectionPanel();
     updateArrangeControls();
+    renderUniverseUI();
   }
+
+  applyUniverseView();
 
   function showToast(message, duration = 1800) {
     clearTimeout(toastTimer);
@@ -354,6 +488,192 @@
   function setSheet(sheet, open) {
     sheet.classList.toggle("open", open);
     sheet.setAttribute("aria-hidden", open ? "false" : "true");
+  }
+
+  function closeAllUtilitySheets() {
+    setSheet(menuSheet, false);
+    setSheet(universeSheet, false);
+    setSheet(helpSheet, false);
+  }
+
+  function renderUniverseUI() {
+    if (!data || !store) return;
+
+    activeUniverseName.textContent = data.name || "UNIVERSE";
+    activeUniverseName.title = data.name || "UNIVERSE";
+    universeMenuCount.textContent = `${store.universes.length} ${store.universes.length === 1 ? "UNIVERSE" : "UNIVERSES"}`;
+
+    universeList.innerHTML = "";
+
+    for (const universe of store.universes) {
+      const row = document.createElement("div");
+      row.className = "universe-row";
+      row.classList.toggle("active", universe.id === data.id);
+
+      const openButton = document.createElement("button");
+      openButton.type = "button";
+      openButton.className = "universe-open";
+      openButton.dataset.universeId = universe.id;
+      openButton.setAttribute("aria-label", `${universe.name}を開く`);
+
+      const name = document.createElement("span");
+      name.className = "universe-name";
+      name.textContent = universe.name;
+
+      const meta = document.createElement("span");
+      meta.className = "universe-meta";
+      const seedCount = universe.nodes?.length || 0;
+      const seedLabel = `${seedCount} ${seedCount === 1 ? "SEED" : "SEEDS"}`;
+      meta.textContent = universe.id === data.id ? `CURRENT · ${seedLabel}` : seedLabel;
+
+      openButton.append(name, meta);
+
+      const actions = document.createElement("div");
+      actions.className = "universe-actions";
+
+      const renameButton = document.createElement("button");
+      renameButton.type = "button";
+      renameButton.className = "universe-action";
+      renameButton.dataset.renameUniverseId = universe.id;
+      renameButton.setAttribute("aria-label", `${universe.name}の名前を変更`);
+      renameButton.textContent = "✎";
+
+      const deleteUniverseButton = document.createElement("button");
+      deleteUniverseButton.type = "button";
+      deleteUniverseButton.className = "universe-action danger";
+      deleteUniverseButton.dataset.deleteUniverseId = universe.id;
+      deleteUniverseButton.setAttribute("aria-label", `${universe.name}を削除`);
+      deleteUniverseButton.textContent = "×";
+      deleteUniverseButton.disabled = store.universes.length <= 1;
+
+      actions.append(renameButton, deleteUniverseButton);
+      row.append(openButton, actions);
+      universeList.appendChild(row);
+    }
+  }
+
+  function switchUniverse(id, announce = true) {
+    const next = store.universes.find(item => item.id === id);
+    if (!next) return;
+
+    if (next.id === data.id) {
+      setSheet(universeSheet, false);
+      setSheet(menuSheet, false);
+      return;
+    }
+
+    persistActiveUniverse();
+    data = next;
+    store.activeUniverseId = next.id;
+    applyUniverseView();
+
+    editingId = null;
+    isNew = false;
+    connectState = null;
+    projectedNodes = [];
+    highlightedId = null;
+    lastTap = { id: null, time: 0, blank: false };
+    panelLastTap = { id: null, time: 0 };
+
+    writeStore();
+    renderConnectionPanel();
+    updateArrangeControls();
+    renderUniverseUI();
+    closeAllUtilitySheets();
+
+    if (announce) showToast(`「${data.name}」へ移動しました`, 1500);
+  }
+
+  function defaultUniverseName() {
+    const used = new Set(store.universes.map(item => item.name));
+    let index = store.universes.length + 1;
+    let name = `UNIVERSE ${String(index).padStart(2, "0")}`;
+    while (used.has(name)) {
+      index += 1;
+      name = `UNIVERSE ${String(index).padStart(2, "0")}`;
+    }
+    return name;
+  }
+
+  function createUniverse() {
+    const suggestion = defaultUniverseName();
+    const input = prompt("新しい宇宙の名前", suggestion);
+    if (input === null) return;
+
+    const name = input.trim() || suggestion;
+    persistActiveUniverse();
+
+    const universe = createEmptyUniverse(name);
+    store.universes.push(universe);
+    data = universe;
+    store.activeUniverseId = universe.id;
+    applyUniverseView();
+    writeStore();
+    renderConnectionPanel();
+    updateArrangeControls();
+    renderUniverseUI();
+    closeAllUtilitySheets();
+    showToast(`新しい宇宙「${name}」が生まれました`, 1700);
+
+    setTimeout(() => openEditor(universe.currentId), 260);
+  }
+
+  function renameUniverse(id) {
+    const universe = store.universes.find(item => item.id === id);
+    if (!universe) return;
+
+    const input = prompt("宇宙の名前を変更", universe.name);
+    if (input === null) return;
+
+    const nextName = input.trim();
+    if (!nextName) {
+      showToast("宇宙名を入力してください");
+      return;
+    }
+
+    universe.name = nextName;
+    if (universe.id === data.id) data.name = nextName;
+    persistActiveUniverse();
+    writeStore();
+    renderUniverseUI();
+    showToast("宇宙名を変更しました", 1300);
+  }
+
+  function deleteUniverse(id) {
+    if (store.universes.length <= 1) {
+      showToast("最後の宇宙は削除できません");
+      return;
+    }
+
+    const universe = store.universes.find(item => item.id === id);
+    if (!universe) return;
+    if (!confirm(`宇宙「${universe.name}」と、その中のSEEDをすべて削除しますか？`)) return;
+
+    persistActiveUniverse();
+    const wasActive = data.id === id;
+    store.universes = store.universes.filter(item => item.id !== id);
+
+    if (wasActive) {
+      data = store.universes[0];
+      store.activeUniverseId = data.id;
+      applyUniverseView();
+    }
+
+    writeStore();
+    renderConnectionPanel();
+    updateArrangeControls();
+    renderUniverseUI();
+    showToast("宇宙を削除しました", 1400);
+  }
+
+  function openHelp() {
+    setSheet(menuSheet, false);
+    setSheet(helpSheet, true);
+  }
+
+  function closeHelp() {
+    localStorage.setItem(HELP_KEY, "seen");
+    setSheet(helpSheet, false);
   }
 
   function buildColorPalette() {
@@ -699,8 +1019,9 @@
   function setCurrent(id) {
     if (!data.nodes.some(n => n.id === id)) return;
     data.currentId = id;
+    if (autoView.enabled) resetAutoViewJourney(900);
     saveData();
-    showToast("中心のSEEDを切り替えました");
+    showToast("メインSEEDにしました");
   }
 
   function rotatePoint(pos) {
@@ -1074,10 +1395,147 @@
     drawLabel(p, title, mode, palette, depthAlpha, depthStrength);
   }
 
+  function normalizeAngleNear(angle, reference) {
+    const turn = Math.PI * 2;
+    let result = angle;
+    while (result - reference > Math.PI) result -= turn;
+    while (result - reference < -Math.PI) result += turn;
+    return result;
+  }
+
+  function easeSmootherStep(t) {
+    const n = Math.max(0, Math.min(1, t));
+    return n * n * n * (n * (n * 6 - 15) + 10);
+  }
+
+  function connectedToMain() {
+    if (!data.currentId) return [];
+    const ids = [];
+    for (const [a, b] of data.links) {
+      if (a === data.currentId) ids.push(b);
+      else if (b === data.currentId) ids.push(a);
+    }
+    return ids
+      .map(id => data.nodes.find(node => node.id === id))
+      .filter(Boolean);
+  }
+
+  function chooseAutoViewFocus() {
+    const connected = connectedToMain();
+    const fallback = data.nodes.filter(node => node.id !== data.currentId);
+    const pool = connected.length ? connected : fallback;
+    if (!pool.length) return null;
+
+    const alternatives = pool.filter(node => node.id !== autoView.lastFocusId);
+    const choices = alternatives.length ? alternatives : pool;
+    const focus = choice(choices);
+    autoView.lastFocusId = focus.id;
+    return focus;
+  }
+
+  function planAutoView(time) {
+    const focus = chooseAutoViewFocus();
+    let targetX;
+    let targetY;
+
+    if (focus) {
+      const horizontal = Math.hypot(focus.pos.x, focus.pos.z) || 0.0001;
+      const faceYaw = -Math.atan2(focus.pos.x, focus.pos.z);
+      const facePitch = Math.atan2(focus.pos.y, horizontal);
+      const side = Math.random() < .5 ? -1 : 1;
+
+      // Keep the chosen SEED near, but not directly on top of, the central MAIN SEED.
+      targetY = faceYaw + side * (.24 + Math.random() * .42);
+      targetX = facePitch + (Math.random() - .5) * .54;
+    } else {
+      targetY = rotation.y + (Math.random() < .5 ? -1 : 1) * (.85 + Math.random() * 1.55);
+      targetX = -1.02 + Math.random() * 2.04;
+    }
+
+    targetX = Math.max(-1.25, Math.min(1.25, targetX));
+    targetY = normalizeAngleNear(targetY, rotation.y);
+
+    const distance = Math.hypot(targetX - rotation.x, targetY - rotation.y);
+    autoView.from = { x: rotation.x, y: rotation.y };
+    autoView.target = { x: targetX, y: targetY };
+    autoView.startedAt = time;
+    autoView.duration = Math.max(5600, Math.min(10500, 5200 + distance * 2600));
+    autoView.phase = "moving";
+    velocity = { x: 0, y: 0 };
+  }
+
+  function autoViewBlocked() {
+    return pointers.size > 0 ||
+      gesture.dragging ||
+      Boolean(connectState) ||
+      document.visibilityState === "hidden" ||
+      document.querySelector(".sheet.open") !== null;
+  }
+
+  function updateAutoView(time) {
+    if (!autoView.enabled) return false;
+
+    if (autoViewBlocked()) {
+      autoView.phase = "waiting";
+      autoView.resumeAt = time + 2100;
+      return false;
+    }
+
+    if (time < autoView.resumeAt) return false;
+
+    if (autoView.phase === "idle" || autoView.phase === "waiting") {
+      planAutoView(time);
+    }
+
+    if (autoView.phase === "moving") {
+      const progress = (time - autoView.startedAt) / autoView.duration;
+      const eased = easeSmootherStep(progress);
+      rotation.x = autoView.from.x + (autoView.target.x - autoView.from.x) * eased;
+      rotation.y = autoView.from.y + (autoView.target.y - autoView.from.y) * eased;
+
+      if (progress >= 1) {
+        rotation = { ...autoView.target };
+        autoView.phase = "holding";
+        autoView.holdUntil = time + 1800 + Math.random() * 2400;
+      }
+      return true;
+    }
+
+    if (autoView.phase === "holding") {
+      if (time >= autoView.holdUntil) planAutoView(time);
+      return true;
+    }
+
+    return false;
+  }
+
+  function refreshAutoViewButton() {
+    autoViewButton.classList.toggle("active", autoView.enabled);
+    autoViewButton.setAttribute("aria-pressed", autoView.enabled ? "true" : "false");
+    autoViewButton.setAttribute("aria-label", autoView.enabled ? "自動鑑賞を停止" : "自動鑑賞を開始");
+  }
+
+  function resetAutoViewJourney(delay = 700) {
+    autoView.phase = "idle";
+    autoView.from = null;
+    autoView.target = null;
+    autoView.resumeAt = performance.now() + delay;
+    autoView.lastFocusId = null;
+  }
+
+  function setAutoView(enabled) {
+    autoView.enabled = Boolean(enabled);
+    velocity = { x: 0, y: 0 };
+    resetAutoViewJourney(autoView.enabled ? 280 : 0);
+    refreshAutoViewButton();
+    showToast(autoView.enabled ? "AUTO VIEWを開始しました" : "AUTO VIEWを停止しました", 1300);
+  }
+
   function render(time = 0) {
+    const autoViewApplied = updateAutoView(time);
     velocity.x *= 0.94;
     velocity.y *= 0.94;
-    if (!gesture.dragging && !connectState) {
+    if (!autoViewApplied && !gesture.dragging && !connectState) {
       rotation.x += velocity.x;
       rotation.y += velocity.y;
     }
@@ -1267,9 +1725,40 @@
   canvas.addEventListener("contextmenu", e => e.preventDefault());
 
   addButton.addEventListener("click", () => openEditor());
+  autoViewButton.addEventListener("click", () => setAutoView(!autoView.enabled));
   menuButton.addEventListener("click", () => setSheet(menuSheet, true));
+  universeButton.addEventListener("click", () => setSheet(universeSheet, true));
+  universeMenuButton.addEventListener("click", () => {
+    setSheet(menuSheet, false);
+    setSheet(universeSheet, true);
+  });
+  helpButton.addEventListener("click", openHelp);
+  closeHelpButton.addEventListener("click", closeHelp);
+  createUniverseButton.addEventListener("click", createUniverse);
+
   document.querySelectorAll("[data-close-sheet]").forEach(el => el.addEventListener("click", closeEditor));
   document.querySelectorAll("[data-close-menu]").forEach(el => el.addEventListener("click", () => setSheet(menuSheet, false)));
+  document.querySelectorAll("[data-close-universe]").forEach(el => el.addEventListener("click", () => setSheet(universeSheet, false)));
+  document.querySelectorAll("[data-close-help]").forEach(el => el.addEventListener("click", closeHelp));
+
+  universeList.addEventListener("click", event => {
+    const openTarget = event.target.closest("[data-universe-id]");
+    if (openTarget) {
+      switchUniverse(openTarget.dataset.universeId);
+      return;
+    }
+
+    const renameTarget = event.target.closest("[data-rename-universe-id]");
+    if (renameTarget) {
+      renameUniverse(renameTarget.dataset.renameUniverseId);
+      return;
+    }
+
+    const deleteTarget = event.target.closest("[data-delete-universe-id]");
+    if (deleteTarget) {
+      deleteUniverse(deleteTarget.dataset.deleteUniverseId);
+    }
+  });
 
   connectionPanelToggle.addEventListener("click", () => {
     setPanelCollapsed(!panelCollapsed);
@@ -1369,13 +1858,14 @@
   });
 
   exportButton.addEventListener("click", () => {
-    const payload = JSON.stringify(data, null, 2);
+    persistActiveUniverse();
+    const payload = JSON.stringify(store, null, 2);
     const blob = new Blob([payload], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     const date = new Date().toISOString().slice(0, 10);
     a.href = url;
-    a.download = `SEED-backup-${date}.json`;
+    a.download = `SEED-multiverse-backup-${date}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     showToast("バックアップを書き出しました");
@@ -1386,9 +1876,11 @@
     if (!file) return;
     try {
       const parsed = JSON.parse(await file.text());
-      data = normalizeData(parsed);
+      store = normalizeStore(parsed);
+      data = store.universes.find(item => item.id === store.activeUniverseId) || store.universes[0];
+      applyUniverseView();
       saveData();
-      setSheet(menuSheet, false);
+      closeAllUtilitySheets();
       showToast("バックアップを読み込みました");
     } catch {
       showToast("読み込めないファイルです");
@@ -1401,6 +1893,8 @@
     rotation = { x: -0.18, y: 0.42 };
     velocity = { x: 0, y: 0 };
     zoom = 1;
+    if (autoView.enabled) resetAutoViewJourney(1100);
+    saveData();
     setSheet(menuSheet, false);
     showToast("球体の向きを戻しました");
   });
@@ -1426,11 +1920,14 @@
   });
 
   clearButton.addEventListener("click", () => {
-    if (confirm("すべてのSEEDと接続を削除します。先にバックアップを書き出しましたか？")) {
-      data = { version: 3, nodes: [], links: [], currentId: null, layoutBackup: null };
+    if (confirm(`宇宙「${data.name}」のSEEDと接続をすべて削除します。先にバックアップを書き出しましたか？`)) {
+      data.nodes = [];
+      data.links = [];
+      data.currentId = null;
+      data.layoutBackup = null;
       saveData();
       setSheet(menuSheet, false);
-      showToast("生態系を空にしました");
+      showToast("この宇宙を空にしました");
     }
   });
 
@@ -1442,17 +1939,35 @@
 
   buildColorPalette();
   selectColor("ice");
+  refreshAutoViewButton();
   renderConnectionPanel();
   updateArrangeControls();
+  renderUniverseUI();
+  persistActiveUniverse();
+  writeStore();
+
+  if (localStorage.getItem(HELP_KEY) !== "seen") {
+    setTimeout(() => setSheet(helpSheet, true), 650);
+  }
 
   window.addEventListener("resize", resize);
   window.addEventListener("orientationchange", () => setTimeout(resize, 180));
+  window.addEventListener("pagehide", () => {
+    persistActiveUniverse();
+    writeStore();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      persistActiveUniverse();
+      writeStore();
+    }
+  });
   resize();
   requestAnimationFrame(render);
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./service-worker.js?v=07").catch(() => {});
+      navigator.serviceWorker.register("./service-worker.js?v=09").catch(() => {});
     });
   }
 })();

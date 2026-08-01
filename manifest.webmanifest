@@ -6,7 +6,7 @@
   "display": "standalone",
   "background_color": "#f4f7fb",
   "theme_color": "#f4f7fb",
-  "description": "白い宇宙にSEEDを浮かべる、球体型の立体メモ。",
+  "description": "創作の種を散らかったまま浮かべ、宇宙ごとに育てる球体型メモ。",
   "icons": [
     {
       "src": "./icon-192.png",

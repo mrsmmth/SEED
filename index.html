@@ -10,25 +10,33 @@
   <title>SEED — Spherical Notes</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icon-192.png">
-  <link rel="stylesheet" href="./style.css?v=07">
+  <link rel="stylesheet" href="./style.css?v=09">
 </head>
 <body>
   <main id="app" aria-label="SEED spherical notes">
     <canvas id="universe" aria-label="球体状に配置されたSEEDメモ"></canvas>
 
     <header class="app-header">
-      <div>
+      <div class="brand-block">
         <h1>SEED</h1>
-        <p>SPHERICAL NOTES</p>
+        <button id="universeButton" class="universe-button" type="button" aria-label="宇宙を切り替える">
+          <span id="activeUniverseName">UNIVERSE 01</span>
+          <span class="universe-chevron">⌄</span>
+        </button>
       </div>
       <button id="menuButton" class="icon-button" type="button" aria-label="メニュー">•••</button>
     </header>
 
     <div id="gestureHint" class="gesture-hint" aria-live="polite">
-      空白を回す · ピンチで拡大 · 惑星SEEDをドラッグで移動 · 長押し接続
+      タップで編集 · ダブルタップでメインSEED · 長押しドラッグで接続 · 空白を回す · ピンチで拡大
     </div>
 
     <button id="addButton" class="add-button" type="button" aria-label="新しいSEEDを追加">＋</button>
+
+    <button id="autoViewButton" class="auto-view-button" type="button" aria-label="自動鑑賞を開始" aria-pressed="false">
+      <span class="auto-view-dot" aria-hidden="true"></span>
+      <span>AUTO VIEW</span>
+    </button>
 
     <section id="editorSheet" class="sheet" aria-hidden="true">
       <div class="sheet-backdrop" data-close-sheet></div>
@@ -83,6 +91,13 @@
           <h2 id="menuHeading">SEED</h2>
           <button class="icon-button compact" type="button" data-close-menu aria-label="閉じる">×</button>
         </div>
+
+        <button id="universeMenuButton" class="menu-row" type="button">
+          <span>宇宙を切り替える</span><small id="universeMenuCount">1 UNIVERSE</small>
+        </button>
+        <button id="helpButton" class="menu-row" type="button">
+          <span>使い方を見る</span><small>GUIDE</small>
+        </button>
         <button id="exportButton" class="menu-row" type="button">
           <span>バックアップを書き出す</span><small>JSON</small>
         </button>
@@ -114,7 +129,7 @@
           <span>全接続を解除</span><small>LINK</small>
         </button>
         <button id="clearButton" class="menu-row danger-row" type="button">
-          <span>すべてのSEEDを削除</span><small>RESET</small>
+          <span>この宇宙のSEEDをすべて削除</span><small>RESET</small>
         </button>
         <p class="storage-note">入力内容はこのiPadのブラウザ内に保存されます。ときどきJSONバックアップを書き出してください。</p>
       </div>
@@ -141,8 +156,83 @@
       </div>
     </aside>
 
+
+    <section id="universeSheet" class="sheet" aria-hidden="true">
+      <div class="sheet-backdrop" data-close-universe></div>
+      <div class="sheet-panel universe-panel" role="dialog" aria-modal="true" aria-labelledby="universeHeading">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head">
+          <div>
+            <p class="sheet-kicker">MULTIVERSE</p>
+            <h2 id="universeHeading">UNIVERSES</h2>
+          </div>
+          <button class="icon-button compact" type="button" data-close-universe aria-label="閉じる">×</button>
+        </div>
+        <p class="universe-intro">宇宙ごとにSEED・接続・メインSEED・配置を分けて保存します。宇宙の中は、散らかったままで大丈夫です。</p>
+        <div id="universeList" class="universe-list"></div>
+        <button id="createUniverseButton" class="create-universe-button" type="button">＋ 新しい宇宙をつくる</button>
+      </div>
+    </section>
+
+    <section id="helpSheet" class="sheet" aria-hidden="true">
+      <div class="sheet-backdrop" data-close-help></div>
+      <div class="sheet-panel help-panel" role="dialog" aria-modal="true" aria-labelledby="helpHeading">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head">
+          <div>
+            <p class="sheet-kicker">HOW TO USE</p>
+            <h2 id="helpHeading">SEED GUIDE</h2>
+          </div>
+          <button class="icon-button compact" type="button" data-close-help aria-label="閉じる">×</button>
+        </div>
+
+        <div class="guide-hero">
+          <strong>散らかったまま、育てる。</strong>
+          <p>SEEDは、創作の種を分類せずに浮かべ、必要な時だけつなぐための宇宙です。</p>
+        </div>
+
+        <div class="guide-grid">
+          <article class="guide-card">
+            <span class="guide-index">01</span>
+            <h3>タップで編集</h3>
+            <p>SEEDをタップして、名前・自由記述・色・サイズを編集します。</p>
+          </article>
+          <article class="guide-card emphasis">
+            <span class="guide-index">02</span>
+            <h3>ダブルタップでメインSEED</h3>
+            <p>いま育てる核を中心に置きます。メインは階級ではなく、現在の役割です。</p>
+          </article>
+          <article class="guide-card">
+            <span class="guide-index">03</span>
+            <h3>長押しドラッグで接続</h3>
+            <p>SEEDを長押ししたまま別のSEEDへ運ぶと、接続・解除できます。</p>
+          </article>
+          <article class="guide-card">
+            <span class="guide-index">04</span>
+            <h3>ドラッグで動かす</h3>
+            <p>SEEDをすぐドラッグすると移動。空白をドラッグすると宇宙が回転します。</p>
+          </article>
+          <article class="guide-card">
+            <span class="guide-index">05</span>
+            <h3>ピンチで接近・俯瞰</h3>
+            <p>遠目では種子、近づくと一つの世界。倍率で見え方が変わります。</p>
+          </article>
+          <article class="guide-card">
+            <span class="guide-index">06</span>
+            <h3>宇宙を分ける</h3>
+            <p>左上の宇宙名から切り替え。小説・音楽・企画などを別宇宙に棲み分けできます。</p>
+          </article>
+        </div>
+
+        <div class="guide-foot">
+          <p>空白をダブルタップ、または右下の＋で新しいSEEDが生まれます。</p>
+          <button id="closeHelpButton" class="text-button primary guide-close" type="button">SEEDをはじめる</button>
+        </div>
+      </div>
+    </section>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </main>
-  <script src="./app.js?v=07"></script>
+  <script src="./app.js?v=09"></script>
 </body>
 </html>
