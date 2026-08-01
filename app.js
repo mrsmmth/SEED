@@ -14,11 +14,13 @@
   const bodyInput = document.getElementById("seedBody");
   const saveButton = document.getElementById("saveButton");
   const deleteButton = document.getElementById("deleteButton");
+  const unlinkButton = document.getElementById("unlinkButton");
   const centerButton = document.getElementById("centerButton");
   const exportButton = document.getElementById("exportButton");
   const importInput = document.getElementById("importInput");
   const resetViewButton = document.getElementById("resetViewButton");
   const dismissHintButton = document.getElementById("dismissHintButton");
+  const clearLinksButton = document.getElementById("clearLinksButton");
   const clearButton = document.getElementById("clearButton");
   const gestureHint = document.getElementById("gestureHint");
   const toast = document.getElementById("toast");
@@ -140,6 +142,7 @@
     titleInput.value = node?.title || "";
     bodyInput.value = node?.body || "";
     deleteButton.hidden = isNew;
+    unlinkButton.hidden = isNew;
     centerButton.hidden = isNew;
     setSheet(editorSheet, true);
     setTimeout(() => titleInput.focus(), 300);
@@ -182,6 +185,21 @@
     data.links = data.links.filter(link => !link.includes(id));
     if (data.currentId === id) data.currentId = data.nodes[0]?.id || null;
     saveData();
+  }
+
+  function removeLinksForSeed(id) {
+    const before = data.links.length;
+    data.links = data.links.filter(link => !link.includes(id));
+    const removed = before - data.links.length;
+    if (removed) saveData();
+    return removed;
+  }
+
+  function clearAllLinks() {
+    const removed = data.links.length;
+    data.links = [];
+    if (removed) saveData();
+    return removed;
   }
 
   function toggleLink(a, b) {
@@ -233,14 +251,15 @@
     if (!node || node.id === data.currentId) return;
 
     const currentCamera = rotatePoint(node.pos);
-    let px = (screenX - cx) / Math.max(1, radius * zoom);
-    let py = (screenY - cy) / Math.max(1, radius * zoom);
+    const dragRadius = Math.max(1, radius * zoom * 1.12);
+    let px = (screenX - cx) / dragRadius;
+    let py = (screenY - cy) / dragRadius;
 
-    // Keep the dragged point inside the visible sphere.
+    // Let a SEED travel almost to the full visible edge of the sphere.
     const radial = Math.hypot(px, py);
-    if (radial > 0.97) {
-      px = px / radial * 0.97;
-      py = py / radial * 0.97;
+    if (radial > 0.998) {
+      px = px / radial * 0.998;
+      py = py / radial * 0.998;
     }
 
     // Preserve whether the node was on the front or back hemisphere.
@@ -278,8 +297,8 @@
     canvas.height = Math.round(height * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     cx = width / 2;
-    cy = height * 0.51;
-    radius = Math.min(width, height) * 0.32;
+    cy = height * 0.52;
+    radius = Math.min(width, height) * 0.46;
   }
 
   const dust = Array.from({ length: 95 }, (_, i) => ({
@@ -288,39 +307,68 @@
   }));
 
   function drawBackground(time) {
-    const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(width, height) * 0.72);
+    const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(width, height) * 0.82);
     bg.addColorStop(0, "#ffffff");
-    bg.addColorStop(0.48, "#f8faff");
-    bg.addColorStop(1, "#edf2f8");
+    bg.addColorStop(0.54, "#f9fbff");
+    bg.addColorStop(1, "#eaf1f8");
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, width, height);
 
-    dust.forEach((p, i) => {
-      const drift = Math.sin(time * 0.00022 + p.phase) * 4;
+    dust.forEach((p) => {
+      const driftX = Math.sin(time * 0.00020 + p.phase) * 5;
+      const driftY = Math.cos(time * 0.00016 + p.phase) * 3;
+      const twinkle = .62 + Math.sin(time * 0.0011 + p.phase) * .24;
       ctx.beginPath();
-      ctx.arc(p.x * width + drift, p.y * height, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(41,76,115,${p.a})`;
+      ctx.arc(p.x * width + driftX, p.y * height + driftY, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(38,78,121,${p.a * twinkle})`;
       ctx.fill();
     });
 
-    const halo = ctx.createRadialGradient(cx, cy, radius * .58, cx, cy, radius * 1.22);
+    // The guide sphere now follows the same zoom as the SEED ecosystem.
+    const guideRadius = radius * zoom;
+    const guideFade = Math.max(.025, .075 / Math.max(.75, zoom));
+
+    const halo = ctx.createRadialGradient(
+      cx, cy, guideRadius * .46,
+      cx, cy, Math.max(guideRadius * 1.20, 20)
+    );
     halo.addColorStop(0, "rgba(255,255,255,0)");
-    halo.addColorStop(.76, "rgba(82,121,164,0.018)");
-    halo.addColorStop(1, "rgba(45,88,137,0.085)");
+    halo.addColorStop(.72, "rgba(70,116,166,0.018)");
+    halo.addColorStop(1, "rgba(37,83,133,0.078)");
     ctx.fillStyle = halo;
     ctx.beginPath();
-    ctx.arc(cx, cy, radius * 1.22, 0, Math.PI * 2);
+    ctx.arc(cx, cy, Math.max(guideRadius * 1.20, 12), 0, Math.PI * 2);
     ctx.fill();
 
     ctx.save();
-    ctx.strokeStyle = "rgba(43,78,118,0.075)";
+    ctx.shadowColor = "rgba(44,91,143,.12)";
+    ctx.shadowBlur = 7;
+    ctx.strokeStyle = `rgba(31,70,113,${guideFade})`;
     ctx.lineWidth = 1;
-    ctx.setLineDash([2, 7]);
+    ctx.setLineDash([2, 10]);
+
     ctx.beginPath();
-    ctx.ellipse(cx, cy, radius * 1.06 * zoom, radius * .29 * zoom, rotation.y * .18, 0, Math.PI * 2);
+    ctx.arc(cx, cy, guideRadius * 1.03, 0, Math.PI * 2);
     ctx.stroke();
+
     ctx.beginPath();
-    ctx.ellipse(cx, cy, radius * .36 * zoom, radius * 1.06 * zoom, rotation.x * .16, 0, Math.PI * 2);
+    ctx.ellipse(
+      cx, cy,
+      guideRadius * 1.03,
+      guideRadius * .29,
+      rotation.y * .20,
+      0, Math.PI * 2
+    );
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.ellipse(
+      cx, cy,
+      guideRadius * .34,
+      guideRadius * 1.03,
+      rotation.x * .18,
+      0, Math.PI * 2
+    );
     ctx.stroke();
     ctx.restore();
   }
@@ -330,17 +378,20 @@
   }
 
   function drawLinks() {
+    ctx.save();
     for (const [a, b] of data.links) {
       const pa = linePoint(a), pb = linePoint(b);
       if (!pa || !pb) continue;
       const depth = Math.max(-1, Math.min(1, (pa.z + pb.z) / 2));
-      const alpha = 0.10 + (depth + 1) * 0.10;
+      const alpha = 0.12 + (depth + 1) * 0.12;
       const grad = ctx.createLinearGradient(pa.x, pa.y, pb.x, pb.y);
-      grad.addColorStop(0, `rgba(36,85,139,${alpha})`);
-      grad.addColorStop(.5, `rgba(83,130,178,${Math.min(.42, alpha + .12)})`);
-      grad.addColorStop(1, `rgba(36,85,139,${alpha})`);
+      grad.addColorStop(0, `rgba(30,78,132,${alpha})`);
+      grad.addColorStop(.5, `rgba(80,137,195,${Math.min(.56, alpha + .18)})`);
+      grad.addColorStop(1, `rgba(30,78,132,${alpha})`);
       ctx.strokeStyle = grad;
-      ctx.lineWidth = (pa.core || pb.core) ? 1.7 : 1.05;
+      ctx.lineWidth = (pa.core || pb.core) ? 1.75 : 1.05;
+      ctx.shadowColor = "rgba(60,119,180,.23)";
+      ctx.shadowBlur = (pa.core || pb.core) ? 10 : 6;
       ctx.beginPath();
       ctx.moveTo(pa.x, pa.y);
       const mx = (pa.x + pb.x) / 2;
@@ -352,8 +403,10 @@
     if (connectState) {
       const start = linePoint(connectState.fromId);
       if (start) {
-        ctx.strokeStyle = "rgba(32,78,129,.62)";
+        ctx.strokeStyle = "rgba(26,75,128,.72)";
         ctx.lineWidth = 1.7;
+        ctx.shadowColor = "rgba(49,110,173,.34)";
+        ctx.shadowBlur = 10;
         ctx.setLineDash([5, 6]);
         ctx.beginPath();
         ctx.moveTo(start.x, start.y);
@@ -362,6 +415,7 @@
         ctx.setLineDash([]);
       }
     }
+    ctx.restore();
   }
 
   function roundedRectPath(x, y, w, h, r) {
@@ -381,92 +435,97 @@
 
   function drawNode(p, time) {
     const frontness = (p.z + 1) / 2;
-    const dense = data.nodes.length >= 60;
-    const connectedToCurrent = data.links.some(link =>
-      link.includes(data.currentId) && link.includes(p.node.id)
-    );
-    const showLabel =
-      p.core ||
-      !dense ||
-      zoom >= 1.55 ||
-      connectedToCurrent ||
-      p.z > (zoom < .8 ? .78 : zoom < 1.2 ? .60 : .38);
+    const dense = data.nodes.length >= 36;
 
-    if (!showLabel) {
-      const orbRadius = Math.max(3.4, (4.1 + frontness * 3.2) * p.screenScale);
-      const alpha = .20 + frontness * .52;
+    let mode = 2; // 0: symbol only, 1: compact title, 2: full title
+    if (!p.core) {
+      if (zoom < .64 || (dense && zoom < 1.15 && p.z < .66)) {
+        mode = 0;
+      } else if (zoom < 1.42 || (dense && p.z < .14)) {
+        mode = 1;
+      }
+    }
+
+    if (mode === 0) {
+      const size = Math.max(6, Math.min(14, (7 + frontness * 4) * p.screenScale));
       p.hit = {
-        x: p.x - Math.max(13, orbRadius * 1.8),
-        y: p.y - Math.max(13, orbRadius * 1.8),
-        w: Math.max(26, orbRadius * 3.6),
-        h: Math.max(26, orbRadius * 3.6),
-        r: Math.max(14, orbRadius * 1.9)
+        x: p.x - 14,
+        y: p.y - 14,
+        w: 28,
+        h: 28,
+        r: 14
       };
 
       ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.shadowColor = "rgba(34,72,113,.18)";
-      ctx.shadowBlur = 7 + frontness * 8;
-      const orb = ctx.createRadialGradient(
-        p.x - orbRadius * .35, p.y - orbRadius * .35, orbRadius * .15,
-        p.x, p.y, orbRadius
-      );
-      orb.addColorStop(0, "rgba(255,255,255,.98)");
-      orb.addColorStop(1, "rgba(189,207,228,.78)");
-      ctx.fillStyle = orb;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, orbRadius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(29,70,114,.22)";
+      ctx.globalAlpha = .20 + frontness * .52;
+      ctx.strokeStyle = `rgba(20,58,99,${.30 + frontness * .42})`;
       ctx.lineWidth = 1;
-      ctx.stroke();
+      ctx.shadowColor = "rgba(48,105,166,.18)";
+      ctx.shadowBlur = 6;
+      ctx.strokeRect(p.x - size / 2, p.y - size / 2, size, size);
       ctx.restore();
       return;
     }
 
-    const title = truncateText(p.node.title || "SEED", p.core ? 18 : (zoom > 1.7 ? 20 : 13));
-    const baseFont = p.core ? 17 : Math.max(10.5, 11.5 + frontness * 2.5);
-    const fontSize = Math.min(24, baseFont * p.screenScale);
+    const maxChars = p.core ? 18 : (mode === 1 ? 9 : (zoom > 1.9 ? 22 : 15));
+    const title = truncateText(p.node.title || "SEED", maxChars);
+    const baseFont = p.core ? 16.5 : (mode === 1 ? 10.5 : 12.2 + frontness * 1.6);
+    const fontSize = Math.max(9, Math.min(21, baseFont * p.screenScale));
     ctx.font = `${p.core ? 650 : 560} ${fontSize}px -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif`;
+
     const textW = ctx.measureText(title).width;
-    const padX = (p.core ? 22 : 15) * p.screenScale;
-    const w = Math.max((p.core ? 96 : 64) * p.screenScale, textW + padX * 2);
-    const h = (p.core ? 53 : 39) * p.screenScale;
-    const pulse = p.core ? 1 + Math.sin(time * .0022) * .025 : 1;
-    const x = p.x - (w * pulse) / 2;
-    const y = p.y - (h * pulse) / 2;
-    p.hit = { x, y, w: w * pulse, h: h * pulse, r: Math.max(w, h) * .6 };
+    const padX = (p.core ? 20 : (mode === 1 ? 10 : 14)) * p.screenScale;
+    const minW = (p.core ? 108 : (mode === 1 ? 42 : 70)) * p.screenScale;
+    const w = Math.max(minW, textW + padX * 2);
+    const h = (p.core ? 44 : (mode === 1 ? 24 : 31)) * p.screenScale;
+    const pulse = p.core ? 1 + Math.sin(time * .0020) * .018 : 1;
+    const drawW = w * pulse;
+    const drawH = h * pulse;
+    const x = p.x - drawW / 2;
+    const y = p.y - drawH / 2;
+
+    p.hit = { x, y, w: drawW, h: drawH, r: Math.max(drawW, drawH) * .62 };
 
     ctx.save();
-    const alpha = p.core ? 0.98 : 0.48 + frontness * .44;
-    ctx.globalAlpha = alpha;
-    ctx.shadowColor = p.core ? "rgba(103,122,156,.28)" : "rgba(34,72,113,.16)";
-    ctx.shadowBlur = p.core ? 28 : 10 + frontness * 12;
-    ctx.shadowOffsetY = p.core ? 8 : 4;
-
-    const fill = ctx.createLinearGradient(x, y, x, y + h);
-    fill.addColorStop(0, p.core ? "rgba(255,255,255,.99)" : "rgba(255,255,255,.93)");
-    fill.addColorStop(1, p.core ? "rgba(241,235,218,.95)" : "rgba(240,245,251,.84)");
-    ctx.fillStyle = fill;
-    roundedRectPath(x, y, w * pulse, h * pulse, p.core ? 27 : 20);
-    ctx.fill();
-
-    ctx.shadowColor = "transparent";
-    ctx.strokeStyle = p.core ? "rgba(133,111,62,.26)" : `rgba(38,78,121,${.12 + frontness * .13})`;
-    ctx.lineWidth = p.core ? 1.25 : 1;
-    ctx.stroke();
-
-    ctx.fillStyle = p.core ? "#183759" : "#183c64";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(title, p.x, p.y + .5);
+    ctx.globalAlpha = p.core ? .99 : (.30 + frontness * .56);
 
     if (p.core) {
-      ctx.beginPath();
-      ctx.arc(p.x, p.y - h * .56, 3.1, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(160,128,62,.60)";
-      ctx.fill();
+      const aura = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, Math.max(drawW, drawH) * .92);
+      aura.addColorStop(0, "rgba(115,163,214,.22)");
+      aura.addColorStop(.56, "rgba(78,133,191,.10)");
+      aura.addColorStop(1, "rgba(60,112,171,0)");
+      ctx.fillStyle = aura;
+      ctx.fillRect(
+        p.x - Math.max(drawW, drawH),
+        p.y - Math.max(drawW, drawH),
+        Math.max(drawW, drawH) * 2,
+        Math.max(drawW, drawH) * 2
+      );
+
+      ctx.shadowColor = "rgba(58,121,188,.48)";
+      ctx.shadowBlur = 22 + Math.sin(time * .0020) * 5;
+      ctx.strokeStyle = "rgba(22,66,112,.88)";
+      ctx.lineWidth = 1.35;
+      ctx.strokeRect(x, y, drawW, drawH);
+
+      ctx.shadowBlur = 8;
+      ctx.strokeStyle = "rgba(99,151,205,.72)";
+      ctx.lineWidth = .8;
+      ctx.strokeRect(x + 4, y + 4, drawW - 8, drawH - 8);
+      ctx.fillStyle = "#102f52";
+    } else {
+      ctx.shadowColor = "rgba(60,116,177,.16)";
+      ctx.shadowBlur = mode === 1 ? 5 : 8;
+      ctx.strokeStyle = `rgba(18,57,99,${.38 + frontness * .42})`;
+      ctx.lineWidth = .9;
+      ctx.strokeRect(x, y, drawW, drawH);
+      ctx.fillStyle = `rgba(17,52,91,${.52 + frontness * .42})`;
     }
+
+    ctx.shadowColor = "transparent";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(title, p.x, p.y + .2);
     ctx.restore();
   }
 
@@ -687,6 +746,15 @@
     closeEditor();
   });
 
+  unlinkButton.addEventListener("click", () => {
+    if (!editingId) return;
+    const removed = removeLinksForSeed(editingId);
+    showToast(
+      removed ? `${removed}件の接続を解除しました` : "このSEEDに接続はありません",
+      1500
+    );
+  });
+
   centerButton.addEventListener("click", () => {
     if (editingId) setCurrent(editingId);
     closeEditor();
@@ -744,6 +812,16 @@
     gestureHint.classList.toggle("hidden", hidden);
     localStorage.setItem(HINT_KEY, hidden ? "hidden" : "visible");
     setSheet(menuSheet, false);
+  });
+
+  clearLinksButton.addEventListener("click", () => {
+    if (!confirm("すべての接続だけを解除しますか？")) return;
+    const removed = clearAllLinks();
+    setSheet(menuSheet, false);
+    showToast(
+      removed ? `${removed}件の接続を解除しました` : "解除する接続はありません",
+      1500
+    );
   });
 
   clearButton.addEventListener("click", () => {

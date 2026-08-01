@@ -1,9 +1,9 @@
-const CACHE = "seed-spherical-v03";
+const CACHE = "seed-spherical-v04";
 const ASSETS = [
   "./",
   "./index.html",
-  "./style.css",
-  "./app.js",
+  "./style.css?v=04",
+  "./app.js?v=04",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png"
@@ -16,18 +16,28 @@ self.addEventListener("install", event => {
 
 self.addEventListener("activate", event => {
   event.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key))))
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))
+    )
   );
   self.clients.claim();
 });
 
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
+
   event.respondWith(
-    caches.match(event.request).then(cached => cached || fetch(event.request).then(response => {
-      const copy = response.clone();
-      caches.open(CACHE).then(cache => cache.put(event.request, copy));
-      return response;
-    }).catch(() => caches.match("./index.html")))
+    fetch(event.request)
+      .then(response => {
+        const copy = response.clone();
+        caches.open(CACHE).then(cache => cache.put(event.request, copy));
+        return response;
+      })
+      .catch(async () => {
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        if (event.request.mode === "navigate") return caches.match("./index.html");
+        throw new Error("Offline asset unavailable");
+      })
   );
 });
