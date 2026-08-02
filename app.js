@@ -5,6 +5,8 @@
   const HINT_KEY = "seed-spherical-hint-v1";
   const PANEL_KEY = "seed-connection-panel-v1";
   const HELP_KEY = "seed-help-seen-v1";
+  const SEED_LIST_PANEL_KEY = "seed-list-panel-v1";
+  const SEED_LIST_SORT_KEY = "seed-list-sort-v1";
   const MAIN_SIZE = 1.34;
   const GUIDE_SCALE = 0.50;
   const MAX_FREE_DISTANCE = 3.40;
@@ -140,6 +142,14 @@
   const connectionEmpty = document.getElementById("connectionEmpty");
   const connectionCount = document.getElementById("connectionCount");
 
+  const seedListPanel = document.getElementById("seedListPanel");
+  const seedListToggle = document.getElementById("seedListToggle");
+  const seedListSearch = document.getElementById("seedListSearch");
+  const seedListSort = document.getElementById("seedListSort");
+  const seedListItems = document.getElementById("seedListItems");
+  const seedListCount = document.getElementById("seedListCount");
+  const seedListEmpty = document.getElementById("seedListEmpty");
+
   let dpr = Math.min(window.devicePixelRatio || 1, 2);
   let width = 0, height = 0;
   let cx = 0, cy = 0, radius = 0;
@@ -159,6 +169,13 @@
   let panelLastTap = { id: null, time: 0 };
   let panelPressTimer = null;
   let panelLongPressHandled = false;
+
+  let seedListCollapsed = localStorage.getItem(SEED_LIST_PANEL_KEY) !== "visible";
+  let seedListSortMode = localStorage.getItem(SEED_LIST_SORT_KEY) || "new";
+  let seedListQuery = "";
+  let seedListLastTap = { id: null, time: 0 };
+  let seedListPressTimer = null;
+  let seedListLongPressHandled = false;
 
   let autoView = {
     mode: 0,
@@ -479,6 +496,7 @@
     persistActiveUniverse();
     writeStore();
     renderConnectionPanel();
+    renderSeedList();
     updateArrangeControls();
     renderUniverseUI();
   }
@@ -581,9 +599,11 @@
     highlightedId = null;
     lastTap = { id: null, time: 0, blank: false };
     panelLastTap = { id: null, time: 0 };
+    seedListLastTap = { id: null, time: 0 };
 
     writeStore();
     renderConnectionPanel();
+    renderSeedList();
     updateArrangeControls();
     renderUniverseUI();
     closeAllUtilitySheets();
@@ -617,6 +637,7 @@
     applyUniverseView();
     writeStore();
     renderConnectionPanel();
+    renderSeedList();
     updateArrangeControls();
     renderUniverseUI();
     closeAllUtilitySheets();
@@ -668,6 +689,7 @@
 
     writeStore();
     renderConnectionPanel();
+    renderSeedList();
     updateArrangeControls();
     renderUniverseUI();
     showToast("宇宙を削除しました", 1400);
@@ -790,6 +812,150 @@
     applyPanelState();
   }
 
+  function connectionCountForSeed(id) {
+    let count = 0;
+    for (const [a, b] of data.links) {
+      if (a === id || b === id) count += 1;
+    }
+    return count;
+  }
+
+  function mainDistance(node) {
+    const main = data.nodes.find(item => item.id === data.currentId);
+    if (!main || node.id === main.id) return 0;
+    return Math.hypot(
+      node.pos.x - main.pos.x,
+      node.pos.y - main.pos.y,
+      node.pos.z - main.pos.z
+    );
+  }
+
+  function compareSeedListNodes(a, b) {
+    if (seedListSortMode === "old") {
+      return (a.createdAt || 0) - (b.createdAt || 0);
+    }
+    if (seedListSortMode === "name") {
+      return String(a.title || "").localeCompare(String(b.title || ""), "ja", { sensitivity: "base" });
+    }
+    if (seedListSortMode === "color") {
+      const colorDifference = COLOR_KEYS.indexOf(a.color) - COLOR_KEYS.indexOf(b.color);
+      if (colorDifference !== 0) return colorDifference;
+      return String(a.title || "").localeCompare(String(b.title || ""), "ja", { sensitivity: "base" });
+    }
+    if (seedListSortMode === "size-desc") {
+      return (Number(b.size) || 0) - (Number(a.size) || 0);
+    }
+    if (seedListSortMode === "size-asc") {
+      return (Number(a.size) || 0) - (Number(b.size) || 0);
+    }
+    if (seedListSortMode === "links") {
+      const difference = connectionCountForSeed(b.id) - connectionCountForSeed(a.id);
+      if (difference !== 0) return difference;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    }
+    if (seedListSortMode === "distance") {
+      return mainDistance(a) - mainDistance(b);
+    }
+    return (b.createdAt || 0) - (a.createdAt || 0);
+  }
+
+  function createSeedListRow(node, isMain = false) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = `seed-list-row${isMain ? " main" : ""}`;
+    row.dataset.seedId = node.id;
+    row.title = node.title || "無題のSEED";
+
+    const color = document.createElement("span");
+    color.className = "seed-list-color";
+    color.style.setProperty("--seed-color", COLOR_PALETTES[node.color]?.chip || "#83d9f1");
+
+    const copy = document.createElement("span");
+    copy.className = "seed-list-copy";
+
+    const title = document.createElement("span");
+    title.className = "seed-list-title";
+    title.textContent = node.title || "無題のSEED";
+
+    const meta = document.createElement("span");
+    meta.className = "seed-list-meta";
+    if (isMain) {
+      const mainTag = document.createElement("span");
+      mainTag.className = "seed-list-main-tag";
+      mainTag.textContent = "MAIN";
+      meta.appendChild(mainTag);
+    }
+    const size = document.createElement("span");
+    const sizeLabels = { "0.76": "S", "0.88": "M", "1": "L", "1.00": "L", "1.12": "XL" };
+    size.textContent = sizeLabels[String(node.size)] || "M";
+    meta.appendChild(size);
+
+    copy.append(title, meta);
+
+    const links = document.createElement("span");
+    links.className = "seed-list-links";
+    links.textContent = `LINK ${connectionCountForSeed(node.id)}`;
+
+    row.append(color, copy, links);
+    return row;
+  }
+
+  function renderSeedList() {
+    if (!seedListPanel) return;
+
+    const query = seedListQuery.trim().toLocaleLowerCase("ja");
+    const matches = node => !query || String(node.title || "").toLocaleLowerCase("ja").includes(query);
+    const main = data.nodes.find(node => node.id === data.currentId) || null;
+    const others = data.nodes
+      .filter(node => node.id !== data.currentId && matches(node))
+      .sort(compareSeedListNodes);
+
+    seedListItems.innerHTML = "";
+    if (main && matches(main)) seedListItems.appendChild(createSeedListRow(main, true));
+    for (const node of others) seedListItems.appendChild(createSeedListRow(node));
+
+    const visibleCount = others.length + (main && matches(main) ? 1 : 0);
+    seedListCount.textContent = query ? `${visibleCount}/${data.nodes.length}` : String(data.nodes.length);
+    seedListEmpty.hidden = visibleCount > 0;
+    seedListSort.value = seedListSortMode;
+    applySeedListState();
+  }
+
+  function applySeedListState() {
+    seedListPanel.classList.toggle("collapsed", seedListCollapsed);
+    seedListToggle.setAttribute("aria-expanded", seedListCollapsed ? "false" : "true");
+    seedListToggle.setAttribute(
+      "aria-label",
+      seedListCollapsed ? "SEED一覧を表示" : "SEED一覧を隠す"
+    );
+  }
+
+  function setSeedListCollapsed(collapsed) {
+    seedListCollapsed = Boolean(collapsed);
+    localStorage.setItem(SEED_LIST_PANEL_KEY, seedListCollapsed ? "hidden" : "visible");
+    applySeedListState();
+  }
+
+  function focusSeedFromList(id) {
+    const node = data.nodes.find(item => item.id === id);
+    if (!node) return;
+
+    if (node.id !== data.currentId) {
+      const horizontal = Math.hypot(node.pos.x, node.pos.z) || 0.0001;
+      const faceYaw = -Math.atan2(node.pos.x, node.pos.z);
+      const facePitch = Math.atan2(node.pos.y, horizontal);
+      rotation.y = normalizeAngleNear(faceYaw + 0.34, rotation.y);
+      rotation.x = Math.max(-1.32, Math.min(1.32, facePitch - 0.10));
+      zoom = Math.max(zoom, 1.14);
+      velocity = { x: 0, y: 0 };
+      if (autoView.mode > 0) resetAutoViewJourney(1800);
+      persistActiveUniverse();
+      writeStore();
+    }
+
+    focusSeed(id);
+  }
+
   function focusSeed(id) {
     const node = data.nodes.find(item => item.id === id);
     if (!node) return;
@@ -797,14 +963,18 @@
     highlightedId = id;
     highlightUntil = performance.now() + 2300;
 
-    connectionPanel.querySelectorAll("[data-seed-id]").forEach(button => {
-      button.classList.toggle("focused", button.dataset.seedId === id);
+    [connectionPanel, seedListPanel].forEach(panel => {
+      panel?.querySelectorAll("[data-seed-id]").forEach(button => {
+        button.classList.toggle("focused", button.dataset.seedId === id);
+      });
     });
 
     setTimeout(() => {
       if (highlightedId !== id) return;
-      connectionPanel.querySelectorAll("[data-seed-id]").forEach(button => {
-        button.classList.remove("focused");
+      [connectionPanel, seedListPanel].forEach(panel => {
+        panel?.querySelectorAll("[data-seed-id]").forEach(button => {
+          button.classList.remove("focused");
+        });
       });
     }, 1800);
 
@@ -1824,6 +1994,63 @@
   });
 
 
+  seedListToggle.addEventListener("click", () => {
+    setSeedListCollapsed(!seedListCollapsed);
+  });
+
+  seedListSearch.addEventListener("input", () => {
+    seedListQuery = seedListSearch.value;
+    renderSeedList();
+  });
+
+  seedListSort.addEventListener("change", () => {
+    seedListSortMode = seedListSort.value;
+    localStorage.setItem(SEED_LIST_SORT_KEY, seedListSortMode);
+    renderSeedList();
+  });
+
+  seedListPanel.addEventListener("pointerdown", event => {
+    const target = event.target.closest("[data-seed-id]");
+    if (!target) return;
+
+    seedListLongPressHandled = false;
+    clearTimeout(seedListPressTimer);
+    seedListPressTimer = setTimeout(() => {
+      seedListLongPressHandled = true;
+      openEditor(target.dataset.seedId);
+    }, 560);
+  });
+
+  ["pointerup", "pointercancel", "pointerleave"].forEach(type => {
+    seedListPanel.addEventListener(type, () => {
+      clearTimeout(seedListPressTimer);
+      seedListPressTimer = null;
+    });
+  });
+
+  seedListPanel.addEventListener("click", event => {
+    const target = event.target.closest("[data-seed-id]");
+    if (!target) return;
+
+    if (seedListLongPressHandled) {
+      seedListLongPressHandled = false;
+      return;
+    }
+
+    const id = target.dataset.seedId;
+    const now = Date.now();
+    const secondTap = seedListLastTap.id === id && now - seedListLastTap.time < 1050;
+
+    if (secondTap) {
+      seedListLastTap = { id: null, time: 0 };
+      openEditor(id);
+    } else {
+      seedListLastTap = { id, time: now };
+      focusSeedFromList(id);
+    }
+  });
+
+
   saveButton.addEventListener("click", () => {
     const title = titleInput.value.trim();
     const body = bodyInput.value.trim();
@@ -1959,6 +2186,7 @@
   selectColor("ice");
   refreshAutoViewButton();
   renderConnectionPanel();
+  renderSeedList();
   updateArrangeControls();
   renderUniverseUI();
   persistActiveUniverse();
@@ -1985,7 +2213,7 @@
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./service-worker.js?v=09").catch(() => {});
+      navigator.serviceWorker.register("./service-worker.js?v=11").catch(() => {});
     });
   }
 })();

@@ -10,7 +10,7 @@
   <title>SEED — Spherical Notes</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icon-192.png">
-  <link rel="stylesheet" href="./style.css?v=10">
+  <link rel="stylesheet" href="./style.css?v=11">
 </head>
 <body>
   <main id="app" aria-label="SEED spherical notes">
@@ -157,6 +157,47 @@
     </aside>
 
 
+    <aside id="seedListPanel" class="seed-list-panel collapsed" aria-label="登録SEED一覧">
+      <button id="seedListToggle" class="seed-list-toggle" type="button"
+              aria-label="SEED一覧を表示" aria-expanded="false">
+        <span>SEED LIST</span>
+      </button>
+      <div class="seed-list-inner">
+        <div class="seed-list-head">
+          <div>
+            <p class="seed-list-kicker">REGISTERED</p>
+            <h2>SEED LIST</h2>
+          </div>
+          <span id="seedListCount" class="seed-list-count">0</span>
+        </div>
+
+        <label class="seed-list-search-wrap">
+          <span class="sr-only">SEEDを検索</span>
+          <input id="seedListSearch" class="seed-list-search" type="search"
+                 placeholder="名前を検索" autocomplete="off" maxlength="80">
+        </label>
+
+        <label class="seed-list-sort-wrap">
+          <span>SORT</span>
+          <select id="seedListSort" class="seed-list-sort" aria-label="SEED一覧の並び順">
+            <option value="new">新しい順</option>
+            <option value="old">古い順</option>
+            <option value="name">名前順</option>
+            <option value="color">色順</option>
+            <option value="size-desc">サイズ：大きい順</option>
+            <option value="size-asc">サイズ：小さい順</option>
+            <option value="links">接続数：多い順</option>
+            <option value="distance">MAINから近い順</option>
+          </select>
+        </label>
+
+        <div id="seedListItems" class="seed-list-items"></div>
+        <p id="seedListEmpty" class="seed-list-empty">NO SEED</p>
+        <p class="seed-list-help">タップで発光・フォーカス ／ もう一度タップで編集</p>
+      </div>
+    </aside>
+
+
     <section id="universeSheet" class="sheet" aria-hidden="true">
       <div class="sheet-backdrop" data-close-universe></div>
       <div class="sheet-panel universe-panel" role="dialog" aria-modal="true" aria-labelledby="universeHeading">
@@ -233,6 +274,6 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </main>
-  <script src="./app.js?v=10"></script>
+  <script src="./app.js?v=11"></script>
 </body>
 </html>
